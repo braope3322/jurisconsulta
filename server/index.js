@@ -15,8 +15,8 @@ console.log(`[SERVER] Instância ${INSTANCE_ID} iniciada em ${INSTANCE_START}`);
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '150mb' }));
+app.use(express.urlencoded({ limit: '150mb', extended: true }));
 
 // Desabilitar ETag globalmente
 app.set('etag', false);
