@@ -276,20 +276,24 @@ app.get('/api/consulta/:cpf', async (req, res) => {
       return res.status(400).json({ error: 'CPF inválido' });
     }
 
-    // Buscar dados pessoais com timeout de 5s (sempre buscar)
+    // Buscar dados pessoais com timeout de 10s (sempre buscar)
     let dadosPessoais = null;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), 10000);
       const apiRes = await fetch(`https://mktsuporte.com.br/apifull.php?cpf=${cpf}`, {
         signal: controller.signal
       });
       clearTimeout(timeout);
       if (apiRes.ok) {
-        dadosPessoais = await apiRes.json();
+        const text = await apiRes.text();
+        if (text && text.trim()) {
+          dadosPessoais = JSON.parse(text);
+          console.log(`[API] Dados pessoais encontrados para CPF ${cpf}: ${dadosPessoais?.NOME || 'sem nome'}`);
+        }
       }
     } catch (err) {
-      console.log('Erro ao buscar dados pessoais:', err.message);
+      console.log(`[API] Erro ao buscar dados pessoais para CPF ${cpf}:`, err.message);
     }
 
     // Buscar processos - usando LIKE para maior compatibilidade
