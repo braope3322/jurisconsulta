@@ -3,28 +3,47 @@ import cors from 'cors';
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ID único desta instância para diagnóstico
+const INSTANCE_ID = crypto.randomBytes(4).toString('hex');
+const INSTANCE_START = new Date().toISOString();
+console.log(`[SERVER] Instância ${INSTANCE_ID} iniciada em ${INSTANCE_START}`);
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Desabilitar cache para todas as APIs
+// Desabilitar ETag globalmente
+app.set('etag', false);
+
+// Desabilitar cache para todas as APIs (incluindo Cloudflare)
 app.use('/api', (req, res, next) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  // Headers padrão de no-cache
+  res.set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
+  // Headers específicos para CDNs/proxies
   res.set('Surrogate-Control', 'no-store');
+  res.set('CDN-Cache-Control', 'no-store');
+  // Headers específicos para Cloudflare
+  res.set('Cloudflare-CDN-Cache-Control', 'no-store');
+  // Variação para forçar respostas únicas
+  res.set('Vary', '*');
+  // ID da instância para diagnóstico
+  res.set('X-Instance-ID', INSTANCE_ID);
+  res.set('X-Response-Time', new Date().toISOString());
   next();
 });
 
-// Desabilitar ETag globalmente para APIs
-app.set('etag', false);
-
-const db = new Database(join(__dirname, 'database.db'));
+// Usar caminho absoluto para o banco de dados (persistência)
+const DB_PATH = process.env.DATABASE_PATH || join(__dirname, 'database.db');
+console.log(`[SERVER] Usando banco de dados: ${DB_PATH}`);
+const db = new Database(DB_PATH);
 
 // Tabela de acessos
 db.exec(`
@@ -181,6 +200,9 @@ app.get('/api/processos', (req, res) => {
   const dataQuery = `SELECT processos.*, ${dadosSubquery} as tem_dados FROM processos ${whereClause} ${orderClause} LIMIT ? OFFSET ?`;
   const processos = db.prepare(dataQuery).all(...params, limit, offset);
 
+  // Log para diagnóstico
+  console.log(`[${INSTANCE_ID}] GET /api/processos page=${page} total=${total} returned=${processos.length}`);
+
   res.json({
     data: processos,
     pagination: {
@@ -188,6 +210,11 @@ app.get('/api/processos', (req, res) => {
       limit,
       total,
       totalPages: Math.ceil(total / limit)
+    },
+    _debug: {
+      instance: INSTANCE_ID,
+      timestamp: Date.now(),
+      dbPath: DB_PATH
     }
   });
 });
@@ -566,6 +593,29 @@ app.post('/api/importar', (req, res) => {
   }
 
   res.json({ success: true, importados, erros, total: processos.length });
+});
+
+// Endpoint de diagnóstico
+app.get('/api/health', (req, res) => {
+  const processosCount = db.prepare('SELECT COUNT(*) as total FROM processos').get().total;
+  const prosseguimentosCount = db.prepare('SELECT COUNT(*) as total FROM prosseguimentos').get().total;
+  const acessosCount = db.prepare('SELECT COUNT(*) as total FROM acessos').get().total;
+
+  res.json({
+    status: 'ok',
+    instance: {
+      id: INSTANCE_ID,
+      startedAt: INSTANCE_START,
+      uptime: Math.floor((Date.now() - new Date(INSTANCE_START).getTime()) / 1000) + 's'
+    },
+    database: {
+      path: DB_PATH,
+      processos: processosCount,
+      prosseguimentos: prosseguimentosCount,
+      acessos: acessosCount
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Servir arquivos estáticos do build em produção
