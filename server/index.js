@@ -368,8 +368,8 @@ app.post('/api/importar', (req, res) => {
 // Servir arquivos estáticos do build em produção
 app.use(express.static(join(__dirname, '../dist')));
 
-// Fallback para SPA
-app.get('*', (req, res) => {
+// Fallback para SPA (Express 5 syntax)
+app.get('/{*splat}', (req, res) => {
   res.sendFile(join(__dirname, '../dist/index.html'));
 });
 
