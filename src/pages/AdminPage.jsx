@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Scale, Plus, Pencil, Trash2, X, Save, FileText, DollarSign, Search,
@@ -106,14 +106,16 @@ export default function AdminPage() {
   const [config, setConfig] = useState({ whatsapp_numero: '', whatsapp_mensagem: '' })
   const [savingConfig, setSavingConfig] = useState(false)
   const LIMIT = 50
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const loadingRef = useRef(false)
 
-  // Load initial data
+  // Load on mount
   useEffect(() => {
+    loadProcessos()
     loadProsseguimentos()
   }, [])
 
-  // Load data based on active tab
+  // Load when tab/filters change
   useEffect(() => {
     if (activeTab === 'processos') {
       loadProcessos()
@@ -122,43 +124,35 @@ export default function AdminPage() {
       loadAcessosStats()
     } else if (activeTab === 'configuracoes') {
       loadConfig()
+    } else if (activeTab === 'dados_enviados') {
+      loadProsseguimentos()
     }
-  }, [activeTab])
-
-  // Reload processos when filters change
-  useEffect(() => {
-    if (activeTab === 'processos') {
-      loadProcessos()
-    }
-  }, [page, searchTerm, orderBy])
-
-  // Reload acessos when page changes
-  useEffect(() => {
-    if (activeTab === 'acessos') {
-      loadAcessos()
-    }
-  }, [acessosPage])
+  }, [activeTab, page, searchTerm, orderBy, acessosPage])
 
   async function loadAll() {
+    if (loadingRef.current) return
+    loadingRef.current = true
     setRefreshing(true)
     try {
-      await Promise.all([
-        loadProcessos(),
-        loadProsseguimentos(),
-        loadAcessos(),
-        loadAcessosStats()
-      ])
+      if (activeTab === 'processos') {
+        await loadProcessos()
+      } else if (activeTab === 'dados_enviados') {
+        await loadProsseguimentos()
+      } else if (activeTab === 'acessos') {
+        await Promise.all([loadAcessos(), loadAcessosStats()])
+      }
     } finally {
       setRefreshing(false)
+      loadingRef.current = false
     }
   }
 
-  async function loadProcessos(filterDados = '') {
+  async function loadProcessos() {
+    if (activeTab !== 'processos') return
     setIsLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(LIMIT), orderBy })
       if (searchTerm) params.append('search', searchTerm)
-      if (filterDados) params.append('filterDados', filterDados)
       const res = await fetch(`/api/processos?${params}`)
       if (res.ok) {
         const result = await res.json()

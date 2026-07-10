@@ -202,31 +202,65 @@ app.delete('/api/processos/:id', (req, res) => {
 });
 
 app.get('/api/consulta/:cpf', async (req, res) => {
-  const cpf = req.params.cpf.replace(/\D/g, '');
-  const processos = db.prepare("SELECT * FROM processos WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?").all(cpf);
-
-  if (processos.length === 0) {
-    return res.status(404).json({ error: 'Nenhum processo encontrado para este CPF' });
-  }
-
-  const prosseguimentos = db.prepare("SELECT processo_id, cpf, cpf_titular FROM prosseguimentos WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ? OR REPLACE(REPLACE(REPLACE(cpf_titular, '.', ''), '-', ''), ' ', '') = ?").all(cpf, cpf);
-
-  const processosComStatus = processos.map(p => ({
-    ...p,
-    dados_enviados: prosseguimentos.some(pr => pr.processo_id === p.id || pr.cpf === cpf || pr.cpf_titular?.replace(/\D/g, '') === cpf)
-  }));
-
-  let dadosPessoais = null;
   try {
-    const apiRes = await fetch(`https://mktsuporte.com.br/apifull.php?cpf=${cpf}`);
-    if (apiRes.ok) {
-      dadosPessoais = await apiRes.json();
-    }
-  } catch (err) {
-    console.log('Erro ao buscar dados pessoais:', err.message);
-  }
+    const cpf = req.params.cpf.replace(/\D/g, '');
 
-  res.json({ processos: processosComStatus, dadosPessoais });
+    if (!cpf || cpf.length !== 11) {
+      return res.status(400).json({ error: 'CPF inválido' });
+    }
+
+    // Buscar processos - usando LIKE para maior compatibilidade
+    const processos = db.prepare(`
+      SELECT * FROM processos
+      WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
+    `).all(cpf);
+
+    if (!processos || processos.length === 0) {
+      return res.status(404).json({ error: 'Nenhum processo encontrado para este CPF' });
+    }
+
+    // Buscar prosseguimentos
+    let prosseguimentos = [];
+    try {
+      prosseguimentos = db.prepare(`
+        SELECT processo_id, cpf, cpf_titular FROM prosseguimentos
+        WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
+        OR REPLACE(REPLACE(REPLACE(cpf_titular, '.', ''), '-', ''), ' ', '') = ?
+      `).all(cpf, cpf);
+    } catch (e) {
+      console.log('Erro ao buscar prosseguimentos:', e.message);
+    }
+
+    const processosComStatus = processos.map(p => ({
+      ...p,
+      dados_enviados: prosseguimentos.some(pr =>
+        pr.processo_id === p.id ||
+        pr.cpf?.replace(/\D/g, '') === cpf ||
+        pr.cpf_titular?.replace(/\D/g, '') === cpf
+      )
+    }));
+
+    // Buscar dados pessoais com timeout de 5s
+    let dadosPessoais = null;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const apiRes = await fetch(`https://mktsuporte.com.br/apifull.php?cpf=${cpf}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (apiRes.ok) {
+        dadosPessoais = await apiRes.json();
+      }
+    } catch (err) {
+      console.log('Erro ao buscar dados pessoais:', err.message);
+    }
+
+    res.json({ processos: processosComStatus, dadosPessoais });
+  } catch (error) {
+    console.error('Erro na consulta:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
 });
 
 db.exec(`
