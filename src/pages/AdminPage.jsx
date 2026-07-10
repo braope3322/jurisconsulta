@@ -452,8 +452,8 @@ export default function AdminPage() {
     setPage(1)
   }
 
-  const totalReceber = processos.reduce((s, p) => s + (p.valor_receber || 0), 0)
-  const totalPendente = processos.reduce((s, p) => s + (p.valor_pendente || 0), 0)
+  const totalReceber = (processos || []).reduce((s, p) => s + (p.valor_receber || 0), 0)
+  const totalPendente = (processos || []).reduce((s, p) => s + (p.valor_pendente || 0), 0)
   const totalComDados = prosseguimentos.length
 
   return (
