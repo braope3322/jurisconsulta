@@ -595,8 +595,9 @@ app.post('/api/importar', (req, res) => {
   res.json({ success: true, importados, erros, total: processos.length });
 });
 
-// Endpoint de diagnóstico
+// Endpoint de diagnóstico (v2)
 app.get('/api/health', (req, res) => {
+  console.log(`[${INSTANCE_ID}] GET /api/health`);
   const processosCount = db.prepare('SELECT COUNT(*) as total FROM processos').get().total;
   const prosseguimentosCount = db.prepare('SELECT COUNT(*) as total FROM prosseguimentos').get().total;
   const acessosCount = db.prepare('SELECT COUNT(*) as total FROM acessos').get().total;
