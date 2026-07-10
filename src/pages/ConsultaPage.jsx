@@ -14,6 +14,26 @@ function formatCPF(value) {
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
 }
 
+function validarCPF(cpf) {
+  const digits = cpf.replace(/\D/g, '')
+  if (digits.length !== 11) return false
+  if (/^(\d)\1+$/.test(digits)) return false
+
+  let sum = 0
+  for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i)
+  let d1 = (sum * 10) % 11
+  if (d1 === 10) d1 = 0
+  if (d1 !== parseInt(digits[9])) return false
+
+  sum = 0
+  for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i)
+  let d2 = (sum * 10) % 11
+  if (d2 === 10) d2 = 0
+  if (d2 !== parseInt(digits[10])) return false
+
+  return true
+}
+
 function formatPhone(value) {
   const digits = value.replace(/\D/g, '').slice(0, 11)
   if (digits.length <= 2) return digits
@@ -271,13 +291,15 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
                   Telefone para contato
                 </label>
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="tel"
                   required
                   value={form.telefone}
                   onChange={e => setForm({ ...form, telefone: formatPhone(e.target.value) })}
-                  className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-base focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
+                  className="w-full px-4 py-4 border border-gray-200 rounded-xl text-lg focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
                   placeholder="(00) 00000-0000"
                   autoFocus
+                  autoComplete="tel"
                 />
               </div>
 
@@ -316,22 +338,25 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Agência</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
                     value={form.agencia}
                     onChange={e => setForm({ ...form, agencia: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-base focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
+                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-lg text-center focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
                     placeholder="0000"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Conta</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
                     required
                     value={form.conta}
                     onChange={e => setForm({ ...form, conta: e.target.value.replace(/[^\d-]/g, '').slice(0, 15) })}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-base focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
+                    className="w-full px-4 py-4 border border-gray-200 rounded-xl text-lg text-center focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
                     placeholder="00000-0"
                   />
                 </div>
@@ -348,13 +373,13 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
                       key={tipo.value}
                       type="button"
                       onClick={() => setForm({ ...form, tipo_conta: tipo.value })}
-                      className={`py-3.5 px-4 rounded-xl text-sm font-medium border-2 transition-all flex items-center justify-center gap-2 ${
+                      className={`py-4 px-4 rounded-xl text-base font-medium border-2 transition-all flex items-center justify-center gap-2 ${
                         form.tipo_conta === tipo.value
                           ? 'border-[#2364af] bg-[#e8f0fe] text-[#2364af]'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300'
                       }`}
                     >
-                      <tipo.icon className="w-4 h-4" />
+                      <tipo.icon className="w-5 h-5" />
                       {tipo.label}
                     </button>
                   ))}
@@ -370,7 +395,7 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
                   type="text"
                   value={form.chave_pix}
                   onChange={e => setForm({ ...form, chave_pix: e.target.value })}
-                  className="w-full px-4 py-3.5 border border-gray-200 rounded-xl text-base focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
+                  className="w-full px-4 py-4 border border-gray-200 rounded-xl text-base focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all"
                   placeholder="CPF, e-mail ou chave aleatória"
                 />
               </div>
@@ -408,7 +433,11 @@ function SearchScreen({ onSearch, loading, error }) {
     e.preventDefault()
     const digits = cpf.replace(/\D/g, '')
     if (digits.length !== 11) {
-      setLocalError('Informe um CPF válido')
+      setLocalError('Informe um CPF com 11 dígitos')
+      return
+    }
+    if (!validarCPF(cpf)) {
+      setLocalError('CPF inválido. Verifique os números.')
       return
     }
     setLocalError('')
@@ -472,12 +501,15 @@ function SearchScreen({ onSearch, loading, error }) {
           <form onSubmit={handleSubmit}>
             <label className="block text-sm text-gray-700 mb-2">Informe seu CPF para consulta</label>
             <input
-              type="text"
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={cpf}
               onChange={e => { setCpf(formatCPF(e.target.value)); setLocalError('') }}
               placeholder="000.000.000-00"
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all mb-4"
+              className="w-full px-4 py-4 border border-gray-200 rounded-lg text-lg text-center font-mono tracking-wider focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all mb-4"
               autoFocus
+              autoComplete="off"
             />
 
             {(localError || error) && (
