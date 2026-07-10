@@ -575,7 +575,7 @@ app.put('/api/configuracoes', (req, res) => {
   res.json({ success: true });
 });
 
-// Importar processos de JSON
+// Importar processos de JSON (incremental - não apaga existentes)
 app.post('/api/importar', (req, res) => {
   const { processos } = req.body;
 
@@ -583,16 +583,30 @@ app.post('/api/importar', (req, res) => {
     return res.status(400).json({ error: 'Formato inválido. Esperado array de processos.' });
   }
 
-  const stmt = db.prepare(`
+  // Verificar se processo já existe pelo numero_processo
+  const checkStmt = db.prepare('SELECT id FROM processos WHERE numero_processo = ?');
+
+  const insertStmt = db.prepare(`
     INSERT INTO processos (nome, cpf, numero_processo, advogado, valor_receber, valor_pendente, status, polo_ativo, polo_passivo, cnpj_reu, vara, comarca, classe, assunto, jurisdicao, orgao_julgador, valor_causa, autuacao, segredo_justica, justica_gratuita, tutela_liminar, prioridade)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   let importados = 0;
+  let duplicados = 0;
   let erros = 0;
 
   for (const p of processos) {
     try {
+      // Verificar se já existe
+      const numeroProcesso = p.numero_processo || '';
+      if (numeroProcesso) {
+        const existe = checkStmt.get(numeroProcesso);
+        if (existe) {
+          duplicados++;
+          continue;
+        }
+      }
+
       // Limpar nome do autor (remover "Polo ativo" e " -")
       const nomeAutor = (p.nome_autor || '').replace(/^Polo ativo/i, '').replace(/ -$/, '').trim();
       const nomeReu = (p.nome_reu || '').replace(/^Polo passivo/i, '').replace(/ -$/, '').trim();
@@ -607,10 +621,10 @@ app.post('/api/importar', (req, res) => {
       const poloAtivo = p.processo_original?.polo_ativo || nomeAutor;
       const poloPassivo = p.processo_original?.polo_passivo || nomeReu;
 
-      stmt.run(
+      insertStmt.run(
         nomeAutor,                                    // nome
         (p.cpf_autor || '').replace(/\D/g, ''),       // cpf
-        p.numero_processo || '',                      // numero_processo
+        numeroProcesso,                               // numero_processo
         '',                                           // advogado
         valorCausaNum,                                // valor_receber
         0,                                            // valor_pendente
@@ -638,7 +652,7 @@ app.post('/api/importar', (req, res) => {
     }
   }
 
-  res.json({ success: true, importados, erros, total: processos.length });
+  res.json({ success: true, importados, duplicados, erros, total: processos.length });
 });
 
 // Endpoint de diagnóstico (v2)

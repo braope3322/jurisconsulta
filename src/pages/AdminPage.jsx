@@ -1435,8 +1435,9 @@ export default function AdminPage() {
                 <div>
                   <p className="text-emerald-200 text-sm font-medium">Importação concluída!</p>
                   <p className="text-emerald-300/70 text-xs mt-1">
-                    {importResult?.importados} de {importResult?.total} processos importados
-                    {importResult?.erros > 0 && ` (${importResult.erros} erros)`}
+                    {importResult?.importados} novos processos importados
+                    {importResult?.duplicados > 0 && ` • ${importResult.duplicados} já existentes (ignorados)`}
+                    {importResult?.erros > 0 && ` • ${importResult.erros} erros`}
                   </p>
                 </div>
                 <button onClick={() => setImportResult(null)} className="ml-auto text-emerald-400 hover:text-emerald-200">
