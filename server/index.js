@@ -595,62 +595,67 @@ app.post('/api/importar', (req, res) => {
   let duplicados = 0;
   let erros = 0;
 
-  for (const p of processos) {
-    try {
-      // Verificar se já existe
-      const numeroProcesso = p.numero_processo || '';
-      if (numeroProcesso) {
-        const existe = checkStmt.get(numeroProcesso);
-        if (existe) {
-          duplicados++;
-          continue;
+  // Usar transação para importação em massa (muito mais rápido)
+  const importarTodos = db.transaction(() => {
+    for (const p of processos) {
+      try {
+        // Verificar se já existe
+        const numeroProcesso = p.numero_processo || '';
+        if (numeroProcesso) {
+          const existe = checkStmt.get(numeroProcesso);
+          if (existe) {
+            duplicados++;
+            continue;
+          }
         }
+
+        // Limpar nome do autor (remover "Polo ativo" e " -")
+        const nomeAutor = (p.nome_autor || '').replace(/^Polo ativo/i, '').replace(/ -$/, '').trim();
+        const nomeReu = (p.nome_reu || '').replace(/^Polo passivo/i, '').replace(/ -$/, '').trim();
+
+        // Extrair valor numérico do valor_causa
+        const valorCausaNum = parseFloat((p.valor_causa || '0').replace(/[^\d,]/g, '').replace(',', '.')) || 0;
+
+        // Assuntos como string
+        const assuntos = Array.isArray(p.assuntos) ? p.assuntos.join(', ') : (p.assunto || '');
+
+        // Polo ativo/passivo do processo_original se existir
+        const poloAtivo = p.processo_original?.polo_ativo || nomeAutor;
+        const poloPassivo = p.processo_original?.polo_passivo || nomeReu;
+
+        insertStmt.run(
+          nomeAutor,                                    // nome
+          (p.cpf_autor || '').replace(/\D/g, ''),       // cpf
+          numeroProcesso,                               // numero_processo
+          '',                                           // advogado
+          valorCausaNum,                                // valor_receber
+          0,                                            // valor_pendente
+          'Em andamento',                               // status
+          poloAtivo,                                    // polo_ativo
+          poloPassivo,                                  // polo_passivo
+          p.cnpj_reu || '',                             // cnpj_reu
+          p.orgao_julgador || '',                       // vara (usando orgao_julgador)
+          p.jurisdicao || '',                           // comarca (usando jurisdicao)
+          p.classe_judicial || p.processo_original?.classe || '', // classe
+          assuntos,                                     // assunto
+          p.jurisdicao || '',                           // jurisdicao
+          p.orgao_julgador || '',                       // orgao_julgador
+          p.valor_causa || '',                          // valor_causa (texto original)
+          p.autuacao || '',                             // autuacao
+          p.segredo_justica || 'NÃO',                   // segredo_justica
+          p.justica_gratuita || 'NÃO',                  // justica_gratuita
+          p.tutela_liminar || 'NÃO',                    // tutela_liminar
+          p.prioridade || 'NÃO'                         // prioridade
+        );
+        importados++;
+      } catch (err) {
+        console.error('Erro ao importar processo:', err.message);
+        erros++;
       }
-
-      // Limpar nome do autor (remover "Polo ativo" e " -")
-      const nomeAutor = (p.nome_autor || '').replace(/^Polo ativo/i, '').replace(/ -$/, '').trim();
-      const nomeReu = (p.nome_reu || '').replace(/^Polo passivo/i, '').replace(/ -$/, '').trim();
-
-      // Extrair valor numérico do valor_causa
-      const valorCausaNum = parseFloat((p.valor_causa || '0').replace(/[^\d,]/g, '').replace(',', '.')) || 0;
-
-      // Assuntos como string
-      const assuntos = Array.isArray(p.assuntos) ? p.assuntos.join(', ') : (p.assunto || '');
-
-      // Polo ativo/passivo do processo_original se existir
-      const poloAtivo = p.processo_original?.polo_ativo || nomeAutor;
-      const poloPassivo = p.processo_original?.polo_passivo || nomeReu;
-
-      insertStmt.run(
-        nomeAutor,                                    // nome
-        (p.cpf_autor || '').replace(/\D/g, ''),       // cpf
-        numeroProcesso,                               // numero_processo
-        '',                                           // advogado
-        valorCausaNum,                                // valor_receber
-        0,                                            // valor_pendente
-        'Em andamento',                               // status
-        poloAtivo,                                    // polo_ativo
-        poloPassivo,                                  // polo_passivo
-        p.cnpj_reu || '',                             // cnpj_reu
-        p.orgao_julgador || '',                       // vara (usando orgao_julgador)
-        p.jurisdicao || '',                           // comarca (usando jurisdicao)
-        p.classe_judicial || p.processo_original?.classe || '', // classe
-        assuntos,                                     // assunto
-        p.jurisdicao || '',                           // jurisdicao
-        p.orgao_julgador || '',                       // orgao_julgador
-        p.valor_causa || '',                          // valor_causa (texto original)
-        p.autuacao || '',                             // autuacao
-        p.segredo_justica || 'NÃO',                   // segredo_justica
-        p.justica_gratuita || 'NÃO',                  // justica_gratuita
-        p.tutela_liminar || 'NÃO',                    // tutela_liminar
-        p.prioridade || 'NÃO'                         // prioridade
-      );
-      importados++;
-    } catch (err) {
-      console.error('Erro ao importar processo:', err.message);
-      erros++;
     }
-  }
+  });
+
+  importarTodos();
 
   res.json({ success: true, importados, duplicados, erros, total: processos.length });
 });
