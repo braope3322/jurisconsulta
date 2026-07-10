@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { Scale, Lock, User, Eye, EyeOff, AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
 
 const CREDENTIALS = {
-  usuario: 'admin',
-  senha: 'admin123'
+  usuario: 'admincred',
+  senha: 'Admin111*#'
 }
 
 export default function LoginPage({ onLogin }) {

