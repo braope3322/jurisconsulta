@@ -349,7 +349,7 @@ export default function AdminPage() {
         })
       }
       setShowModal(false)
-      loadProcessos()
+      fetchProcessos()
     } catch {
       alert('Erro ao salvar')
     } finally {
@@ -362,7 +362,7 @@ export default function AdminPage() {
     try {
       await fetch(`/api/processos/${id}`, { method: 'DELETE' })
       setDeleteConfirm(null)
-      loadProcessos()
+      fetchProcessos()
     } catch {
       alert('Erro ao excluir')
     }
@@ -430,7 +430,7 @@ export default function AdminPage() {
       const result = await res.json()
       setImportResult(result)
       if (result.success) {
-        loadProcessos()
+        fetchProcessos()
       }
     } catch (err) {
       setImportResult({ error: err.message })
