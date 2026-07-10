@@ -106,44 +106,47 @@ export default function AdminPage() {
   const [config, setConfig] = useState({ whatsapp_numero: '', whatsapp_mensagem: '' })
   const [savingConfig, setSavingConfig] = useState(false)
   const LIMIT = 50
+  const [isLoading, setIsLoading] = useState(true)
 
+  // Load initial data
   useEffect(() => {
-    let cancelled = false
+    loadProsseguimentos()
+  }, [])
 
-    async function loadData() {
-      setRefreshing(true)
-      try {
-        if (activeTab === 'processos') {
-          await loadProcessos()
-        } else if (activeTab === 'dados_enviados') {
-          await loadProsseguimentos()
-        } else if (activeTab === 'acessos') {
-          await Promise.all([loadAcessos(), loadAcessosStats()])
-        } else if (activeTab === 'configuracoes') {
-          await loadConfig()
-        }
-        // Always load prosseguimentos for the sidebar count
-        if (activeTab !== 'dados_enviados') {
-          await loadProsseguimentos()
-        }
-      } finally {
-        if (!cancelled) setRefreshing(false)
-      }
+  // Load data based on active tab
+  useEffect(() => {
+    if (activeTab === 'processos') {
+      loadProcessos()
+    } else if (activeTab === 'acessos') {
+      loadAcessos()
+      loadAcessosStats()
+    } else if (activeTab === 'configuracoes') {
+      loadConfig()
     }
+  }, [activeTab])
 
-    loadData()
-    return () => { cancelled = true }
-  }, [page, searchTerm, activeTab, orderBy, acessosPage])
+  // Reload processos when filters change
+  useEffect(() => {
+    if (activeTab === 'processos') {
+      loadProcessos()
+    }
+  }, [page, searchTerm, orderBy])
+
+  // Reload acessos when page changes
+  useEffect(() => {
+    if (activeTab === 'acessos') {
+      loadAcessos()
+    }
+  }, [acessosPage])
 
   async function loadAll() {
     setRefreshing(true)
     try {
-      const filter = activeTab === 'dados_enviados' ? 'com_dados' : ''
       await Promise.all([
-        activeTab === 'processos' ? loadProcessos(filter) : Promise.resolve(),
+        loadProcessos(),
         loadProsseguimentos(),
-        activeTab === 'acessos' ? loadAcessos() : Promise.resolve(),
-        activeTab === 'acessos' ? loadAcessosStats() : Promise.resolve()
+        loadAcessos(),
+        loadAcessosStats()
       ])
     } finally {
       setRefreshing(false)
@@ -151,16 +154,22 @@ export default function AdminPage() {
   }
 
   async function loadProcessos(filterDados = '') {
+    setIsLoading(true)
     try {
-      const params = new URLSearchParams({ page, limit: LIMIT, orderBy })
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT), orderBy })
       if (searchTerm) params.append('search', searchTerm)
       if (filterDados) params.append('filterDados', filterDados)
       const res = await fetch(`/api/processos?${params}`)
-      const result = await res.json()
-      setProcessos(result.data || [])
-      setPagination(result.pagination || { total: 0, totalPages: 1 })
-    } catch {
-      console.error('Erro ao carregar processos')
+      if (res.ok) {
+        const result = await res.json()
+        setProcessos(result.data || [])
+        setPagination(result.pagination || { total: 0, totalPages: 1 })
+      }
+    } catch (err) {
+      console.error('Erro ao carregar processos:', err)
+    } finally {
+      setIsLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -512,16 +521,6 @@ export default function AdminPage() {
         </header>
 
         <div className="p-8">
-          {/* Loading overlay */}
-          {refreshing && (
-            <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center">
-              <div className="bg-[#1e293b] rounded-2xl p-6 flex items-center gap-4 shadow-2xl border border-white/10">
-                <div className="w-8 h-8 border-3 border-[#2364af]/30 border-t-[#2364af] rounded-full animate-spin" />
-                <span className="text-white font-medium">Carregando dados...</span>
-              </div>
-            </div>
-          )}
-
           {/* CONTEÚDO DA ABA PROCESSOS */}
           {activeTab === 'processos' && (
             <>
@@ -605,7 +604,14 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {processos.length === 0 ? (
+                {isLoading && processos.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-20 text-center">
+                      <div className="w-8 h-8 border-3 border-[#2364af]/30 border-t-[#2364af] rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-gray-400 font-medium">Carregando processos...</p>
+                    </td>
+                  </tr>
+                ) : processos.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-20 text-center">
                       <FileText className="w-12 h-12 text-gray-700 mx-auto mb-4" />
