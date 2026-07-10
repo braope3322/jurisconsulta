@@ -229,8 +229,8 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
 
   if (sent) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fadeIn">
-        <div className="bg-white rounded-2xl w-full max-w-sm p-8 text-center animate-slideUp shadow-xl">
+      <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 animate-fadeIn overflow-y-auto">
+        <div className="bg-white rounded-2xl w-full max-w-sm p-8 text-center animate-slideUp shadow-xl mb-10">
           <div className="w-16 h-16 mx-auto mb-5 bg-emerald-50 rounded-full flex items-center justify-center animate-scaleIn">
             <CheckCircle className="w-8 h-8 text-emerald-500" />
           </div>
@@ -249,10 +249,10 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fadeIn">
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl animate-slideUp">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 animate-fadeIn overflow-y-auto">
+      <div className="bg-white sm:rounded-2xl w-full max-w-md overflow-hidden shadow-xl animate-slideUp min-h-screen sm:min-h-0 sm:my-4 sm:mx-4">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#2364af] to-[#1a4f8f] px-6 py-5 text-white">
+        <div className="bg-gradient-to-r from-[#2364af] to-[#1a4f8f] px-6 py-5 text-white sticky top-0 z-10">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-lg">Dados para Recebimento</h3>
@@ -273,7 +273,7 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-6 pb-10">
           {step === 1 && (
             <div className="space-y-4 animate-fadeIn">
               {/* Info box */}
