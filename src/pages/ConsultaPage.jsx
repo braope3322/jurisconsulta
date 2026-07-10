@@ -39,8 +39,6 @@ function formatSexo(sexo) {
   return sexo
 }
 
-const WHATSAPP_NUMBER = '5511999999999'
-
 const BANCOS = [
   'Banco do Brasil (001)', 'Bradesco (237)', 'Caixa Econômica Federal (104)',
   'Itaú Unibanco (341)', 'Santander (033)', 'Banco Inter (077)',
@@ -161,19 +159,26 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [step, setStep] = useState(1)
+  const [config, setConfig] = useState({ whatsapp_numero: '5511999999999', whatsapp_mensagem: '' })
+
+  useEffect(() => {
+    fetch('/api/configuracoes').then(r => r.json()).then(setConfig).catch(() => {})
+  }, [])
 
   function buildWhatsAppUrl() {
-    const msg = `Olá! Enviei meus dados para prosseguimento.
-
-*Processo:* ${processo.numero_processo}
-*Nome:* ${form.titular}
-*CPF:* ${form.cpf_titular}
-*Tel:* ${form.telefone}
-
-*Banco:* ${form.banco}
-*Ag:* ${form.agencia}
-*Conta:* ${form.conta} (${form.tipo_conta === 'poupanca' ? 'Poupança' : 'Corrente'})${form.chave_pix ? `\n*PIX:* ${form.chave_pix}` : ''}`
-    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`
+    let msg = config.whatsapp_mensagem || `Olá! Enviei meus dados para prosseguimento do processo {processo}.`
+    msg = msg
+      .replace(/{nome}/g, form.titular || '')
+      .replace(/{processo}/g, processo.numero_processo || '')
+      .replace(/{cpf}/g, form.cpf_titular || '')
+      .replace(/{banco}/g, form.banco || '')
+      .replace(/{agencia}/g, form.agencia || '')
+      .replace(/{conta}/g, form.conta || '')
+      .replace(/{tipo_conta}/g, form.tipo_conta === 'poupanca' ? 'Poupança' : 'Corrente')
+      .replace(/{titular}/g, form.titular || '')
+      .replace(/{cpf_titular}/g, form.cpf_titular || '')
+      .replace(/{pix}/g, form.chave_pix || 'Não informado')
+    return `https://wa.me/${config.whatsapp_numero}?text=${encodeURIComponent(msg)}`
   }
 
   async function handleSubmit(e) {

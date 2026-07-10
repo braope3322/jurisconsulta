@@ -28,6 +28,23 @@ db.exec(`
   )
 `);
 
+// Tabela de configurações
+db.exec(`
+  CREATE TABLE IF NOT EXISTS configuracoes (
+    chave TEXT PRIMARY KEY,
+    valor TEXT
+  )
+`);
+
+// Inserir configurações padrão se não existirem
+const defaultConfigs = [
+  ['whatsapp_numero', '5511999999999'],
+  ['whatsapp_mensagem', 'Olá, me chamo {nome} e estou entrando em contato referente ao processo {processo}.\n\nMeus dados bancários:\n*Banco:* {banco}\n*Agência:* {agencia}\n*Conta:* {conta} ({tipo_conta})\n*Titular:* {titular}\n*CPF Titular:* {cpf_titular}\n*PIX:* {pix}']
+];
+for (const [chave, valor] of defaultConfigs) {
+  db.prepare('INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES (?, ?)').run(chave, valor);
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS processos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -297,6 +314,27 @@ app.get('/api/acessos/stats', (req, res) => {
   const dispositivos = db.prepare('SELECT dispositivo, COUNT(*) as count FROM acessos GROUP BY dispositivo ORDER BY count DESC LIMIT 5').all();
 
   res.json({ total, hoje, dispositivos });
+});
+
+// Obter configurações
+app.get('/api/configuracoes', (req, res) => {
+  const rows = db.prepare('SELECT * FROM configuracoes').all();
+  const config = {};
+  for (const row of rows) {
+    config[row.chave] = row.valor;
+  }
+  res.json(config);
+});
+
+// Salvar configurações
+app.put('/api/configuracoes', (req, res) => {
+  const { whatsapp_numero, whatsapp_mensagem } = req.body;
+
+  const stmt = db.prepare('INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)');
+  if (whatsapp_numero !== undefined) stmt.run('whatsapp_numero', whatsapp_numero);
+  if (whatsapp_mensagem !== undefined) stmt.run('whatsapp_mensagem', whatsapp_mensagem);
+
+  res.json({ success: true });
 });
 
 // Importar processos de JSON
