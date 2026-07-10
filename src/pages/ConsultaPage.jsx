@@ -338,9 +338,8 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Agência</label>
                   <input
-                    type="tel"
+                    type="text"
                     inputMode="numeric"
-                    pattern="[0-9]*"
                     required
                     value={form.agencia}
                     onChange={e => setForm({ ...form, agencia: e.target.value.replace(/\D/g, '').slice(0, 6) })}
@@ -351,7 +350,7 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Conta</label>
                   <input
-                    type="tel"
+                    type="text"
                     inputMode="numeric"
                     required
                     value={form.conta}
@@ -501,9 +500,8 @@ function SearchScreen({ onSearch, loading, error }) {
           <form onSubmit={handleSubmit}>
             <label className="block text-sm text-gray-700 mb-2">Informe seu CPF para consulta</label>
             <input
-              type="tel"
+              type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
               value={cpf}
               onChange={e => { setCpf(formatCPF(e.target.value)); setLocalError('') }}
               placeholder="000.000.000-00"
