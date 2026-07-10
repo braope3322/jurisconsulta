@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Scale, Plus, Pencil, Trash2, X, Save, FileText, DollarSign, Search,
@@ -80,10 +80,16 @@ function statusConfig(status) {
 
 export default function AdminPage() {
   const navigate = useNavigate()
-  const [processos, setProcessos] = useState([])
+  // Data states - nunca resetar para [] durante loading
+  const [processos, setProcessos] = useState(null)
   const [prosseguimentos, setProsseguimentos] = useState([])
   const [acessos, setAcessos] = useState([])
   const [acessosStats, setAcessosStats] = useState({ total: 0, hoje: 0, dispositivos: [] })
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
+  const [acessosPagination, setAcessosPagination] = useState({ total: 0, totalPages: 1 })
+  const [config, setConfig] = useState({ whatsapp_numero: '', whatsapp_mensagem: '' })
+
+  // UI states
   const [showModal, setShowModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(null)
   const [editing, setEditing] = useState(null)
@@ -97,84 +103,143 @@ export default function AdminPage() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [importing, setImporting] = useState(false)
+  const [savingConfig, setSavingConfig] = useState(false)
+
+  // Filters
   const [page, setPage] = useState(1)
-  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
   const [activeTab, setActiveTab] = useState('processos')
   const [orderBy, setOrderBy] = useState('dados_primeiro')
   const [acessosPage, setAcessosPage] = useState(1)
-  const [acessosPagination, setAcessosPagination] = useState({ total: 0, totalPages: 1 })
-  const [config, setConfig] = useState({ whatsapp_numero: '', whatsapp_mensagem: '' })
-  const [savingConfig, setSavingConfig] = useState(false)
-  const LIMIT = 50
-  const [isLoading, setIsLoading] = useState(false)
-  const loadingRef = useRef(false)
 
-  // Load on mount
+  // Loading state
+  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const LIMIT = 50
+
+  // Carregar dados iniciais
   useEffect(() => {
-    loadProcessos()
-    loadProsseguimentos()
+    fetchProcessos()
+    fetchProsseguimentos()
   }, [])
 
-  // Load when tab/filters change
+  // Carregar quando filtros mudam (apenas para processos)
+  const processosKey = `${page}-${searchTerm}-${orderBy}`
   useEffect(() => {
     if (activeTab === 'processos') {
-      loadProcessos()
-    } else if (activeTab === 'acessos') {
-      loadAcessos()
-      loadAcessosStats()
+      fetchProcessos()
+    }
+  }, [processosKey, activeTab])
+
+  // Carregar quando aba muda
+  useEffect(() => {
+    if (activeTab === 'acessos') {
+      fetchAcessos()
+      fetchAcessosStats()
     } else if (activeTab === 'configuracoes') {
-      loadConfig()
-    } else if (activeTab === 'dados_enviados') {
-      loadProsseguimentos()
+      fetchConfig()
     }
-  }, [activeTab, page, searchTerm, orderBy, acessosPage])
+  }, [activeTab, acessosPage])
 
-  async function loadAll() {
-    if (loadingRef.current) return
-    loadingRef.current = true
-    setRefreshing(true)
-    try {
-      if (activeTab === 'processos') {
-        await loadProcessos()
-      } else if (activeTab === 'dados_enviados') {
-        await loadProsseguimentos()
-      } else if (activeTab === 'acessos') {
-        await Promise.all([loadAcessos(), loadAcessosStats()])
-      }
-    } finally {
-      setRefreshing(false)
-      loadingRef.current = false
-    }
-  }
-
-  async function loadProcessos() {
-    if (activeTab !== 'processos') return
+  async function fetchProcessos() {
     setIsLoading(true)
+    setLoadingProgress(10)
+
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT), orderBy })
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+        orderBy: orderBy
+      })
       if (searchTerm) params.append('search', searchTerm)
+
+      setLoadingProgress(30)
       const res = await fetch(`/api/processos?${params}`)
+      setLoadingProgress(70)
+
       if (res.ok) {
         const result = await res.json()
-        setProcessos(result.data || [])
-        setPagination(result.pagination || { total: 0, totalPages: 1 })
+        setLoadingProgress(90)
+        // Atualizar dados apenas quando tiver resultado
+        if (result.data) {
+          setProcessos(result.data)
+          setPagination(result.pagination || { total: 0, totalPages: 1 })
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar processos:', err)
     } finally {
-      setIsLoading(false)
-      setRefreshing(false)
+      setLoadingProgress(100)
+      setTimeout(() => {
+        setIsLoading(false)
+        setRefreshing(false)
+        setLoadingProgress(0)
+      }, 200)
     }
   }
 
-  async function loadProsseguimentos() {
+  async function fetchProsseguimentos() {
     try {
       const res = await fetch('/api/prosseguimentos')
-      const data = await res.json()
-      setProsseguimentos(data)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          setProsseguimentos(data)
+        }
+      }
     } catch {
       console.error('Erro ao carregar prosseguimentos')
     }
+  }
+
+  async function fetchAcessos() {
+    try {
+      const res = await fetch(`/api/acessos?page=${acessosPage}&limit=${LIMIT}`)
+      if (res.ok) {
+        const result = await res.json()
+        if (result.data) {
+          setAcessos(result.data)
+          setAcessosPagination(result.pagination || { total: 0, totalPages: 1 })
+        }
+      }
+    } catch {
+      console.error('Erro ao carregar acessos')
+    }
+  }
+
+  async function fetchAcessosStats() {
+    try {
+      const res = await fetch('/api/acessos/stats')
+      if (res.ok) {
+        const data = await res.json()
+        setAcessosStats(data)
+      }
+    } catch {
+      console.error('Erro ao carregar estatísticas')
+    }
+  }
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch('/api/configuracoes')
+      if (res.ok) {
+        const data = await res.json()
+        setConfig(data)
+      }
+    } catch {
+      console.error('Erro ao carregar configurações')
+    }
+  }
+
+  async function loadAll() {
+    setRefreshing(true)
+    if (activeTab === 'processos') {
+      await fetchProcessos()
+    } else if (activeTab === 'dados_enviados') {
+      await fetchProsseguimentos()
+    } else if (activeTab === 'acessos') {
+      await Promise.all([fetchAcessos(), fetchAcessosStats()])
+    }
+    setRefreshing(false)
   }
 
   async function loadAcessos() {
@@ -514,6 +579,16 @@ export default function AdminPage() {
           </div>
         </header>
 
+        {/* Barra de progresso */}
+        {isLoading && (
+          <div className="h-1 bg-[#1e293b] overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#2364af] to-[#60a5fa] transition-all duration-300 ease-out"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+        )}
+
         <div className="p-8">
           {/* CONTEÚDO DA ABA PROCESSOS */}
           {activeTab === 'processos' && (
@@ -524,7 +599,7 @@ export default function AdminPage() {
                   { label: 'Total', value: pagination.total.toLocaleString('pt-BR'), icon: FileText, color: '#2364af' },
                   { label: 'Com Dados', value: prosseguimentos.length, icon: Database, color: '#10b981' },
                   { label: 'Página', value: `${page}/${pagination.totalPages || 1}`, icon: FileText, color: '#8b5cf6' },
-                  { label: 'Exibindo', value: processos.length, icon: TrendingUp, color: '#f59e0b' },
+                  { label: 'Exibindo', value: (processos || []).length, icon: TrendingUp, color: '#f59e0b' },
                 ].map((stat, i) => (
                   <div key={i} className="bg-[#1e293b] rounded-2xl border border-white/5 p-5">
                     <div className="flex items-center gap-3 mb-2">
@@ -598,11 +673,12 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {isLoading && processos.length === 0 ? (
+                {processos === null ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-20 text-center">
-                      <div className="w-8 h-8 border-3 border-[#2364af]/30 border-t-[#2364af] rounded-full animate-spin mx-auto mb-4" />
+                      <div className="w-10 h-10 border-4 border-[#2364af]/20 border-t-[#2364af] rounded-full animate-spin mx-auto mb-4" />
                       <p className="text-gray-400 font-medium">Carregando processos...</p>
+                      <p className="text-gray-600 text-xs mt-1">Aguarde um momento</p>
                     </td>
                   </tr>
                 ) : processos.length === 0 ? (
