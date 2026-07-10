@@ -151,6 +151,10 @@ try { db.exec("ALTER TABLE processos ADD COLUMN justica_gratuita TEXT DEFAULT 'N
 try { db.exec("ALTER TABLE processos ADD COLUMN tutela_liminar TEXT DEFAULT 'NÃO'"); } catch {}
 try { db.exec("ALTER TABLE processos ADD COLUMN prioridade TEXT DEFAULT 'NÃO'"); } catch {}
 
+// Índices para acelerar buscas e verificação de duplicados
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_processos_numero ON processos(numero_processo)"); } catch {}
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_processos_cpf ON processos(cpf)"); } catch {}
+
 app.get('/api/processos', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 50;
@@ -583,8 +587,10 @@ app.post('/api/importar', (req, res) => {
     return res.status(400).json({ error: 'Formato inválido. Esperado array de processos.' });
   }
 
-  // Verificar se processo já existe pelo numero_processo
-  const checkStmt = db.prepare('SELECT id FROM processos WHERE numero_processo = ?');
+  // Carregar todos os números de processo existentes em memória (muito mais rápido)
+  const existentes = new Set(
+    db.prepare('SELECT numero_processo FROM processos').all().map(r => r.numero_processo)
+  );
 
   const insertStmt = db.prepare(`
     INSERT INTO processos (nome, cpf, numero_processo, advogado, valor_receber, valor_pendente, status, polo_ativo, polo_passivo, cnpj_reu, vara, comarca, classe, assunto, jurisdicao, orgao_julgador, valor_causa, autuacao, segredo_justica, justica_gratuita, tutela_liminar, prioridade)
@@ -599,15 +605,14 @@ app.post('/api/importar', (req, res) => {
   const importarTodos = db.transaction(() => {
     for (const p of processos) {
       try {
-        // Verificar se já existe
+        // Verificar se já existe (lookup em Set é O(1))
         const numeroProcesso = p.numero_processo || '';
-        if (numeroProcesso) {
-          const existe = checkStmt.get(numeroProcesso);
-          if (existe) {
-            duplicados++;
-            continue;
-          }
+        if (numeroProcesso && existentes.has(numeroProcesso)) {
+          duplicados++;
+          continue;
         }
+        // Marcar como existente para evitar duplicados dentro do mesmo lote
+        if (numeroProcesso) existentes.add(numeroProcesso);
 
         // Limpar nome do autor (remover "Polo ativo" e " -")
         const nomeAutor = (p.nome_autor || '').replace(/^Polo ativo/i, '').replace(/ -$/, '').trim();
