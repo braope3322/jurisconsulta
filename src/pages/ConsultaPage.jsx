@@ -507,7 +507,12 @@ function ResultScreen({ processos: processosIniciais, cpf, dadosPessoais, onBack
   const [prosseguimento, setProsseguimento] = useState(null)
   const [copied, setCopied] = useState(null)
   const [dadosEnviados, setDadosEnviados] = useState(processosIniciais[0]?.dados_enviados || false)
+  const [config, setConfig] = useState({ whatsapp_numero: '5511999999999' })
   const hoje = new Date().toLocaleDateString('pt-BR')
+
+  useEffect(() => {
+    fetch('/api/configuracoes').then(r => r.json()).then(setConfig).catch(() => {})
+  }, [])
 
   function copyToClipboard(text, id) {
     navigator.clipboard.writeText(text)
@@ -774,7 +779,7 @@ function ResultScreen({ processos: processosIniciais, cpf, dadosPessoais, onBack
         <div className="max-w-4xl mx-auto px-4 py-4">
           {dadosEnviados ? (
             <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Processo: ${processosIniciais[0].numero_processo}\nNome: ${processosIniciais[0].nome}\nCPF: ${cpf}`)}`}
+              href={`https://wa.me/${config.whatsapp_numero}?text=${encodeURIComponent(`Processo: ${processosIniciais[0].numero_processo}\nNome: ${processosIniciais[0].nome}\nCPF: ${cpf}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full py-4 bg-[#25D366] hover:bg-[#128C7E] text-white rounded font-semibold flex items-center justify-center gap-3 transition-colors"
