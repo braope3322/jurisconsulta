@@ -365,7 +365,15 @@ app.post('/api/importar', (req, res) => {
   res.json({ success: true, importados, erros, total: processos.length });
 });
 
-const PORT = 3001;
+// Servir arquivos estáticos do build em produção
+app.use(express.static(join(__dirname, '../dist')));
+
+// Fallback para SPA
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '../dist/index.html'));
+});
+
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
