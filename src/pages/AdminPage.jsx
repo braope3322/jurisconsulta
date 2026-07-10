@@ -105,6 +105,7 @@ export default function AdminPage() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
   const [savingConfig, setSavingConfig] = useState(false)
 
   // Filters
@@ -422,6 +423,7 @@ export default function AdminPage() {
 
     setImporting(true)
     setImportResult(null)
+    setImportProgress({ current: 0, total: 0 })
 
     try {
       let text = await file.text()
@@ -445,25 +447,48 @@ export default function AdminPage() {
         throw new Error('O arquivo não contém processos.')
       }
 
-      const res = await fetch('/api/importar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ processos: lista })
+      // Importar em lotes de 500 para evitar timeout
+      const BATCH_SIZE = 500
+      let totalImportados = 0
+      let totalDuplicados = 0
+      let totalErros = 0
+
+      setImportProgress({ current: 0, total: lista.length })
+
+      for (let i = 0; i < lista.length; i += BATCH_SIZE) {
+        const batch = lista.slice(i, i + BATCH_SIZE)
+
+        const res = await fetch('/api/importar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ processos: batch })
+        })
+
+        if (!res.ok) {
+          throw new Error('Erro no servidor: ' + res.status)
+        }
+
+        const result = await res.json()
+        totalImportados += result.importados || 0
+        totalDuplicados += result.duplicados || 0
+        totalErros += result.erros || 0
+
+        setImportProgress({ current: Math.min(i + BATCH_SIZE, lista.length), total: lista.length })
+      }
+
+      setImportResult({
+        success: true,
+        importados: totalImportados,
+        duplicados: totalDuplicados,
+        erros: totalErros,
+        total: lista.length
       })
-
-      if (!res.ok) {
-        throw new Error('Erro no servidor: ' + res.status)
-      }
-
-      const result = await res.json()
-      setImportResult(result)
-      if (result.success) {
-        fetchProcessos()
-      }
+      fetchProcessos()
     } catch (err) {
       setImportResult({ error: err.message })
     } finally {
       setImporting(false)
+      setImportProgress({ current: 0, total: 0 })
       e.target.value = ''
     }
   }
@@ -1416,7 +1441,14 @@ export default function AdminPage() {
             {importing ? (
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span className="text-white text-sm font-medium">Importando processos...</span>
+                <div>
+                  <span className="text-white text-sm font-medium">Importando processos...</span>
+                  {importProgress.total > 0 && (
+                    <p className="text-gray-400 text-xs mt-1">
+                      {importProgress.current.toLocaleString()} / {importProgress.total.toLocaleString()} ({Math.round(importProgress.current / importProgress.total * 100)}%)
+                    </p>
+                  )}
+                </div>
               </div>
             ) : importResult?.error ? (
               <div className="flex items-start gap-3">
