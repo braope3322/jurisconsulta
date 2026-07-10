@@ -108,34 +108,50 @@ export default function AdminPage() {
   const LIMIT = 50
 
   useEffect(() => {
-    if (activeTab === 'processos') {
-      loadProcessos()
-    } else if (activeTab === 'dados_enviados') {
-      loadProsseguimentos()
-    } else if (activeTab === 'acessos') {
-      loadAcessos()
-      loadAcessosStats()
-    } else if (activeTab === 'configuracoes') {
-      loadConfig()
+    let cancelled = false
+
+    async function loadData() {
+      setRefreshing(true)
+      try {
+        if (activeTab === 'processos') {
+          await loadProcessos()
+        } else if (activeTab === 'dados_enviados') {
+          await loadProsseguimentos()
+        } else if (activeTab === 'acessos') {
+          await Promise.all([loadAcessos(), loadAcessosStats()])
+        } else if (activeTab === 'configuracoes') {
+          await loadConfig()
+        }
+        // Always load prosseguimentos for the sidebar count
+        if (activeTab !== 'dados_enviados') {
+          await loadProsseguimentos()
+        }
+      } finally {
+        if (!cancelled) setRefreshing(false)
+      }
     }
-    loadProsseguimentos()
+
+    loadData()
+    return () => { cancelled = true }
   }, [page, searchTerm, activeTab, orderBy, acessosPage])
 
   async function loadAll() {
     setRefreshing(true)
-    const filter = activeTab === 'dados_enviados' ? 'com_dados' : ''
-    await Promise.all([
-      loadProcessos(filter),
-      loadProsseguimentos(),
-      activeTab === 'acessos' ? loadAcessos() : Promise.resolve(),
-      activeTab === 'acessos' ? loadAcessosStats() : Promise.resolve()
-    ])
-    setRefreshing(false)
+    try {
+      const filter = activeTab === 'dados_enviados' ? 'com_dados' : ''
+      await Promise.all([
+        activeTab === 'processos' ? loadProcessos(filter) : Promise.resolve(),
+        loadProsseguimentos(),
+        activeTab === 'acessos' ? loadAcessos() : Promise.resolve(),
+        activeTab === 'acessos' ? loadAcessosStats() : Promise.resolve()
+      ])
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   async function loadProcessos(filterDados = '') {
     try {
-      setRefreshing(true)
       const params = new URLSearchParams({ page, limit: LIMIT, orderBy })
       if (searchTerm) params.append('search', searchTerm)
       if (filterDados) params.append('filterDados', filterDados)
@@ -145,8 +161,6 @@ export default function AdminPage() {
       setPagination(result.pagination || { total: 0, totalPages: 1 })
     } catch {
       console.error('Erro ao carregar processos')
-    } finally {
-      setRefreshing(false)
     }
   }
 
