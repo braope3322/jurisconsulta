@@ -186,19 +186,76 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
   }, [])
 
   function buildWhatsAppUrl() {
-    // Variações de mensagens para parecer mais natural
-    const variacoes = [
-      `Olá, meu nome é {nome}! Estou enviando meus dados bancários referente ao processo {processo}, no valor de {valor_causa}.\n\n*Dados Bancários:*\nBanco: {banco}\nAgência: {agencia}\nConta: {conta} ({tipo_conta})\nTitular: {titular}\nCPF: {cpf_titular}\nPIX: {pix}`,
-      `Boa tarde! Me chamo {nome} e gostaria de informar meus dados para recebimento do processo {processo}, valor da causa: {valor_causa}.\n\n*Meus dados:*\nBanco: {banco}\nAgência: {agencia}\nConta: {conta} ({tipo_conta})\nNome: {titular}\nCPF: {cpf_titular}\nChave PIX: {pix}`,
-      `Olá! Sou {nome}, CPF {cpf_titular}. Seguem meus dados bancários para o processo {processo} (valor: {valor_causa}).\n\nBanco: {banco}\nAg: {agencia}\nConta: {conta} - {tipo_conta}\nTitular: {titular}\nPIX: {pix}`,
-      `Oi, tudo bem? Meu nome é {nome}. Estou encaminhando os dados da minha conta para depósito referente ao processo {processo}, no valor de {valor_causa}.\n\n*Conta para depósito:*\n{banco} | Ag {agencia} | Conta {conta} ({tipo_conta})\nTitular: {titular}\nCPF: {cpf_titular}\nPIX: {pix}`,
-      `Olá! {nome} aqui. Processo: {processo} - Valor: {valor_causa}.\n\nDados para depósito:\nBanco: {banco}\nAgência: {agencia}\nConta: {conta} ({tipo_conta})\nNome: {titular}\nCPF: {cpf_titular}\nPIX: {pix}`
+    // Gerar seed baseado no CPF + processo para variação determinística
+    const seed = parseInt((form.cpf_titular || '0').replace(/\D/g, '').slice(-6) + (processo.id || '0')) || Date.now()
+    const pick = (arr, offset = 0) => arr[(seed + offset) % arr.length]
+
+    // Componentes da mensagem para combinações infinitas
+    const saudacoes = [
+      'Olá!', 'Oi, tudo bem?', 'Olá, boa tarde!', 'Oi!', 'Olá, bom dia!',
+      'Boa tarde!', 'Bom dia!', 'Olá, tudo bem?', 'Oi, boa tarde!', 'Olá, como vai?'
+    ]
+    const apresentacoes = [
+      'Meu nome é {nome}',
+      'Me chamo {nome}',
+      'Sou {nome}',
+      'Aqui é {nome}',
+      '{nome} falando',
+      'Aqui quem fala é {nome}',
+      'Meu nome é {nome}, CPF {cpf_titular}'
+    ]
+    const contextos = [
+      'e estou enviando meus dados bancários referente ao processo {processo}',
+      'estou encaminhando meus dados para recebimento do processo {processo}',
+      'gostaria de informar meus dados bancários para o processo {processo}',
+      'seguem meus dados para depósito do processo {processo}',
+      'envio meus dados referente ao meu processo {processo}',
+      'estou mandando as informações da minha conta para o processo {processo}'
+    ]
+    const mencoesValor = [
+      ', no valor de {valor_causa}',
+      ' (valor: {valor_causa})',
+      ', valor da causa: {valor_causa}',
+      '. Valor: {valor_causa}',
+      ', referente ao valor de {valor_causa}',
+      ' - {valor_causa}'
+    ]
+    const titulosDados = [
+      '*Dados Bancários:*',
+      '*Meus dados:*',
+      '*Dados para depósito:*',
+      '*Conta para recebimento:*',
+      '*Informações bancárias:*',
+      '*Dados da conta:*',
+      'Seguem os dados:'
+    ]
+    const formatosBanco = [
+      'Banco: {banco}\nAgência: {agencia}\nConta: {conta} ({tipo_conta})',
+      '{banco} | Ag: {agencia} | Conta: {conta} ({tipo_conta})',
+      'Banco: {banco}\nAg: {agencia}\nC/C: {conta} - {tipo_conta}',
+      '{banco}, Agência {agencia}, Conta {conta} ({tipo_conta})',
+      'Banco: {banco} / Agência: {agencia} / Conta: {conta} ({tipo_conta})'
+    ]
+    const formatosTitular = [
+      'Titular: {titular}\nCPF: {cpf_titular}',
+      'Nome: {titular}\nCPF: {cpf_titular}',
+      'Titular: {titular} - CPF {cpf_titular}',
+      'Em nome de: {titular} ({cpf_titular})'
+    ]
+    const formatosPix = [
+      'PIX: {pix}',
+      'Chave PIX: {pix}',
+      'Pix: {pix}',
+      'Chave Pix: {pix}'
     ]
 
-    // Usar mensagem configurada ou escolher variação aleatória baseada no CPF
-    const cpfNum = parseInt((form.cpf_titular || '0').replace(/\D/g, '').slice(-2)) || 0
-    const variacaoIndex = cpfNum % variacoes.length
-    let msg = config.whatsapp_mensagem || variacoes[variacaoIndex]
+    // Montar mensagem combinando partes aleatórias
+    let msg
+    if (config.whatsapp_mensagem) {
+      msg = config.whatsapp_mensagem
+    } else {
+      msg = `${pick(saudacoes, 0)} ${pick(apresentacoes, 1)} ${pick(contextos, 2)}${pick(mencoesValor, 3)}.\n\n${pick(titulosDados, 4)}\n${pick(formatosBanco, 5)}\n${pick(formatosTitular, 6)}\n${pick(formatosPix, 7)}`
+    }
 
     // Formatar valor da causa
     const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(processo.valor_receber || 0)
