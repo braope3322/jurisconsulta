@@ -6,7 +6,7 @@ import {
   Gavel, User, Clock, CheckCircle, LogOut, Calendar, TrendingUp,
   Users, Bell, RefreshCw, Upload, AlertCircle, Globe, Monitor, Smartphone,
   ArrowUpDown, Database, Activity, Settings, MessageSquare, Shield, ShieldOff,
-  ShieldAlert, Ban, Link, ToggleLeft, ToggleRight
+  ShieldAlert, Ban, Link, ToggleLeft, ToggleRight, Download
 } from 'lucide-react'
 
 function formatCPFInput(value) {
@@ -409,6 +409,43 @@ export default function AdminPage() {
     } catch {
       alert('Erro ao excluir dados bancários')
     }
+  }
+
+  function handleExportDados() {
+    if (prosseguimentos.length === 0) {
+      alert('Não há dados para exportar')
+      return
+    }
+
+    const linhas = prosseguimentos.map(p => {
+      const data = new Date(p.criado_em).toLocaleString('pt-BR')
+      return `Data: ${data}
+Titular: ${p.titular || '-'}
+CPF: ${p.cpf_titular || p.cpf || '-'}
+Telefone: ${p.telefone || '-'}
+Banco: ${p.banco || '-'}
+Agência: ${p.agencia || '-'}
+Conta: ${p.conta || '-'} (${p.tipo_conta || '-'})
+PIX: ${p.chave_pix || '-'}
+----------------------------------------`
+    })
+
+    const conteudo = `DADOS BANCÁRIOS ENVIADOS
+Exportado em: ${new Date().toLocaleString('pt-BR')}
+Total: ${prosseguimentos.length} registros
+========================================
+
+${linhas.join('\n\n')}`
+
+    const blob = new Blob([conteudo], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `dados_enviados_${new Date().toISOString().slice(0,10)}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   async function handleImportJSON(e) {
@@ -949,6 +986,19 @@ export default function AdminPage() {
                   </p>
                 </div>
               </div>
+
+              {/* Botão de Exportação */}
+              {prosseguimentos.length > 0 && (
+                <div className="flex justify-end mb-4">
+                  <button
+                    onClick={handleExportDados}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all cursor-pointer border border-emerald-500/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    Exportar Dados (.txt)
+                  </button>
+                </div>
+              )}
 
               {/* Tabela de Prosseguimentos */}
               <div className="bg-[#1e293b] rounded-2xl border border-white/5 overflow-hidden">
