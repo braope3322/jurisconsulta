@@ -1279,10 +1279,11 @@ export default function AdminPage() {
                     <div className="mt-2 p-3 bg-[#0f172a] rounded-lg border border-white/5">
                       <p className="text-xs font-semibold text-gray-400 mb-2">Variáveis disponíveis:</p>
                       <div className="flex flex-wrap gap-2">
-                        {['{nome}', '{processo}', '{cpf}', '{banco}', '{agencia}', '{conta}', '{tipo_conta}', '{titular}', '{cpf_titular}', '{pix}'].map(v => (
+                        {['{nome}', '{processo}', '{cpf}', '{banco}', '{agencia}', '{conta}', '{tipo_conta}', '{titular}', '{cpf_titular}', '{pix}', '{valor_causa}'].map(v => (
                           <code key={v} className="px-2 py-1 bg-[#2364af]/20 text-[#2364af] rounded text-xs">{v}</code>
                         ))}
                       </div>
+                      <p className="text-xs text-gray-500 mt-2">💡 Deixe em branco para usar mensagens variadas automaticamente (cada cliente recebe uma versão diferente)</p>
                     </div>
                   </div>
 

